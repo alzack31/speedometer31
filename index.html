@@ -46,32 +46,6 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .speedometer {
-            position: relative;
-            width: 300px;
-            height: 150px;
-            margin: 20px auto;
-            background: var(--card-background);
-        }
-
-        .gauge {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            border-radius: 150px 150px 0 0;
-            overflow: hidden;
-        }
-
-        .gauge-fill {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 0%;
-            background: linear-gradient(to top, #48bb78, #4299e1);
-            transition: height 0.3s ease-out;
-        }
-
         .speed-display {
             font-size: 4rem;
             font-weight: bold;
@@ -153,12 +127,6 @@
 <body>
     <div class="container">
         <h1>Enhanced GPS Speedometer</h1>
-        
-        <div class="speedometer">
-            <div class="gauge">
-                <div class="gauge-fill"></div>
-            </div>
-        </div>
 
         <div class="speed-display">0</div>
         <div class="units">
@@ -223,8 +191,7 @@
             avgSpeedDisplay: document.querySelector('.avg-speed'),
             statusDisplay: document.querySelector('.status'),
             errorDisplay: document.querySelector('.error'),
-            button: document.querySelector('.button'),
-            gaugeFill: document.querySelector('.gauge-fill')
+            button: document.querySelector('.button')
         };
 
         // Kalman Filter update
@@ -261,10 +228,6 @@
             } else {
                 elements.speedDisplay.classList.add('speed-slow');
             }
-
-            // Update gauge
-            const gaugeHeight = Math.min((speed / SPEED_THRESHOLDS.VERY_FAST) * 100, 100);
-            elements.gaugeFill.style.height = `${gaugeHeight}%`;
         }
 
         function toggleTracking() {
