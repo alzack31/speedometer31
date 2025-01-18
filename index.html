@@ -160,7 +160,6 @@
             maxSpeed: 0,
             movingAverageWindow: [],
             lastPollTime: Date.now(),
-            stationary: false,
             stationaryCount: 0
         };
 
@@ -178,8 +177,8 @@
         const kalmanFilter = {
             Q: 0.1, // process noise
             R: 0.1, // measurement noise
-            x: 0,   // initial state
-            P: 1    // initial estimate uncertainty
+            x: null, // initial state
+            P: 1 // initial estimate uncertainty
         };
 
         // DOM Elements
@@ -196,6 +195,9 @@
 
         // Kalman Filter update
         function updateKalmanFilter(measurement) {
+            if (kalmanFilter.x === null) {
+                kalmanFilter.x = measurement; // Initialize with the first measurement
+            }
             // Prediction
             const P = kalmanFilter.P + kalmanFilter.Q;
 
@@ -216,235 +218,145 @@
             return state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
         }
 
-        function updateSpeedDisplay(speed) {
-            // Update color based on speed
+        // Update speed display
+        function updateSpeedDisplay(speedKph) {
+            elements.speedDisplay.textContent = Math.round(speedKph);
+            elements.kphDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
+            elements.mphDisplay.textContent = `${(speedKph * 0.621371).toFixed(1)} mph`;
+
             elements.speedDisplay.className = 'speed-display';
-            if (speed >= SPEED_THRESHOLDS.VERY_FAST) {
-                elements.speedDisplay.classList.add('speed-very-fast');
-            } else if (speed >= SPEED_THRESHOLDS.FAST) {
-                elements.speedDisplay.classList.add('speed-fast');
-            } else if (speed >= SPEED_THRESHOLDS.MEDIUM) {
-                elements.speedDisplay.classList.add('speed-medium');
-            } else {
+            elements.speedDisplay.classList.remove('speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast');
+
+            if (speedKph < SPEED_THRESHOLDS.SLOW) {
                 elements.speedDisplay.classList.add('speed-slow');
-            }
-        }
-
-        function toggleTracking() {
-            if (!state.isTracking) {
-                startTracking();
+            } else if (speedKph < SPEED_THRESHOLDS.MEDIUM) {
+                elements.speedDisplay.classList.add('speed-medium');
+            } else if (speedKph < SPEED_THRESHOLDS.FAST) {
+                elements.speedDisplay.classList.add('speed-fast');
             } else {
-                stopTracking();
+                elements.speedDisplay.classList.add('speed-very-fast');
             }
         }
 
-        function startTracking() {
-            if (!navigator.geolocation) {
-                showError('Geolocation is not supported by your browser', 'Try using a modern browser with GPS support.');
+        // Update status message
+        function updateStatus(message) {
+            elements.statusDisplay.textContent = message;
+        }
+
+        // Handle GPS position updates
+        function handlePositionUpdate(position) {
+            const { latitude, longitude, speed, accuracy } = position.coords;
+            if (accuracy > ACCURACY_THRESHOLD) {
+                updateStatus('Low GPS accuracy, data skipped.');
                 return;
             }
 
-            try {
-                elements.statusDisplay.innerHTML = '<div class="loading"></div>Acquiring GPS signal...';
-                
-                const options = {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
-                };
+            const currentTime = Date.now();
+            if (state.lastPosition) {
+                const { latitude: lastLat, longitude: lastLon, timestamp: lastTime } = state.lastPosition;
+                const distance = haversineDistance(lastLat, lastLon, latitude, longitude);
+                const timeChange = (currentTime - lastTime) / 1000; // seconds
 
-                state.watchId = navigator.geolocation.watchPosition(
-                    updateSpeed,
-                    handleError,
-                    options
-                );
+                if (timeChange > 0) {
+                    const rawSpeedKph = (distance / timeChange) * 3.6; // m/s to km/h
+                    const filteredSpeed = updateKalmanFilter(rawSpeedKph);
+                    const avgSpeed = calculateMovingAverage(filteredSpeed);
 
-                state.isTracking = true;
-                elements.button.textContent = 'Stop Tracking';
-                elements.errorDisplay.textContent = '';
+                    state.speeds.push(filteredSpeed);
+                    if (state.speeds.length > 100) state.speeds.shift();
 
-                // Add visibility change listener
-                document.addEventListener('visibilitychange', handleVisibilityChange);
-            } catch (error) {
-                showError('Failed to start tracking', error.message);
+                    if (filteredSpeed > state.maxSpeed) {
+                        state.maxSpeed = filteredSpeed;
+                        elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
+                    }
+
+                    elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
+                    updateSpeedDisplay(filteredSpeed);
+
+                    if (filteredSpeed < 5) {
+                        state.stationaryCount++;
+                    } else {
+                        state.stationaryCount = 0;
+                    }
+                }
             }
+
+            state.lastPosition = {
+                latitude,
+                longitude,
+                timestamp: currentTime
+            };
         }
 
+        // Haversine formula for distance
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const toRadians = (deg) => (deg * Math.PI) / 180;
+            const dLat = toRadians(lat2 - lat1);
+            const dLon = toRadians(lon2 - lon1);
+
+            const a = Math.sin(dLat / 2) ** 2 +
+                      Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // Handle errors
+        function handleError(error) {
+            elements.errorDisplay.textContent = `Error: ${error.message}`;
+        }
+
+        // Start tracking
+        function startTracking() {
+            if (state.isTracking) return;
+
+            state.isTracking = true;
+            elements.button.textContent = 'Stop Tracking';
+            updateStatus('Tracking started...');
+            elements.errorDisplay.textContent = '';
+
+            state.watchId = navigator.geolocation.watchPosition(handlePositionUpdate, handleError, {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 10000
+            });
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        // Stop tracking
         function stopTracking() {
+            if (!state.isTracking) return;
+
+            state.isTracking = false;
+            elements.button.textContent = 'Start Tracking';
+            updateStatus('Tracking stopped.');
+            elements.errorDisplay.textContent = '';
+
             if (state.watchId !== null) {
                 navigator.geolocation.clearWatch(state.watchId);
                 state.watchId = null;
             }
-            
-            state.isTracking = false;
-            elements.button.textContent = 'Start Tracking';
-            elements.statusDisplay.textContent = 'Tracking stopped';
 
-            // Remove visibility change listener
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         }
 
+        // Handle visibility changes
         function handleVisibilityChange() {
-            if (document.hidden) {
-                // Reduce polling frequency when in background
-                if (state.watchId !== null) {
-                    navigator.geolocation.clearWatch(state.watchId);
-                    state.watchId = navigator.geolocation.watchPosition(
-                        updateSpeed,
-                        handleError,
-                        {
-                            enableHighAccuracy: false,
-                            maximumAge: 30000,
-                            timeout: 27000
-                        }
-                    );
-                }
+            if (document.visibilityState === 'visible' && state.isTracking) {
+                updateStatus('Resumed tracking...');
+            }
+        }
+
+        // Toggle tracking
+        function toggleTracking() {
+            if (state.isTracking) {
+                stopTracking();
             } else {
-                // Restore normal polling frequency
-                if (state.watchId !== null) {
-                    navigator.geolocation.clearWatch(state.watchId);
-                    state.watchId = navigator.geolocation.watchPosition(
-                        updateSpeed,
-                        handleError,
-                        {
-                            enableHighAccuracy: true,
-                            maximumAge: 0,
-                            timeout: 5000
-                        }
-                    );
-                }
+                startTracking();
             }
         }
-
-        function updateSpeed(position) {
-            // Check accuracy
-            if (position.coords.accuracy > ACCURACY_THRESHOLD) {
-                showError('Low GPS accuracy', 'Try moving to an open area or waiting for better signal.');
-                return;
-            }
-
-            if (state.lastPosition === null) {
-                state.lastPosition = position;
-                elements.statusDisplay.textContent = 'Tracking active';
-                return;
-            }
-
-            const timeChange = (position.timestamp - state.lastPosition.timestamp) / 1000;
-            const distance = calculateDistance(
-                state.lastPosition.coords.latitude,
-                state.lastPosition.coords.longitude,
-                position.coords.latitude,
-                position.coords.longitude
-            );
-
-            // Speed in meters per second
-            let speed = distance / timeChange;
-            // Convert to km/h
-            let speedKph = speed * 3.6;
-
-            // Apply Kalman filter and moving average
-            speedKph = updateKalmanFilter(speedKph);
-            speedKph = calculateMovingAverage(speedKph);
-
-            // Convert to mph
-            const speedMph = speedKph * 0.621371;
-
-            // Update displays if speed seems reasonable (less than 200 km/h)
-            if (speedKph < 200 && speedKph >= 0) {
-                state.speeds.push(speedKph);
-                if (state.speeds.length > 10) state.speeds.shift();
-
-                const avgSpeed = state.speeds.reduce((a, b) => a + b, 0) / state.speeds.length;
-                state.maxSpeed = Math.max(state.maxSpeed, speedKph);
-
-                elements.speedDisplay.textContent = speedKph.toFixed(1);
-                elements.kphDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
-                elements.mphDisplay.textContent = `${speedMph.toFixed(1)} mph`;
-                elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
-                elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
-
-                updateSpeedDisplay(speedKph);
-
-                // Adaptive polling based on speed
-                if (speedKph < 5) {
-                    state.stationaryCount++;
-                    if (state.stationaryCount > 5) {
-                        // Reduce polling frequency when stationary
-                        navigator.geolocation.clearWatch(state.watchId);
-                        state.watchId = navigator.geolocation.watchPosition(
-                            updateSpeed,
-                            handleError,
-                            {
-                                enableHighAccuracy: false,
-                                maximumAge: 10000,
-                                timeout: 5000
-                            }
-                        );
-                    }
-                } else {
-                    state.stationaryCount = 0;
-                }
-            }
-
-            state.lastPosition = position;
-        }
-
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3;
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δφ = (lat2-lat1) * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                    Math.cos(φ1) * Math.cos(φ2) *
-                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-            return R * c;
-        }
-
-        function handleError(error) {
-            let message = '';
-            let suggestion = '';
-            
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    message = "Location access denied";
-                    suggestion = "Please enable location services in your browser settings.";
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    message = "Location unavailable";
-                    suggestion = "Check if GPS is enabled and you're in an area with GPS coverage.";
-                    break;
-                case error.TIMEOUT:
-                    message = "Location request timed out";
-                    suggestion = "Try again or move to an area with better GPS signal.";
-                    break;
-                default:
-                    message = "An unknown error occurred";
-                    suggestion = "Try refreshing the page or using a different browser.";
-                    break;
-            }
-            showError(message, suggestion);
-            stopTracking();
-        }
-
-        function showError(message, suggestion = '') {
-            elements.errorDisplay.innerHTML = `
-                <strong>${message}</strong>
-                ${suggestion ? '<br>' + suggestion : ''}
-            `;
-            elements.statusDisplay.textContent = 'Error occurred';
-        }
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (state.watchId !== null) {
-                navigator.geolocation.clearWatch(state.watchId);
-            }
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        });
     </script>
 </body>
 </html>
+        
+        
