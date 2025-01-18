@@ -43,7 +43,7 @@
             background: var(--card-background);
             padding: 2rem;
             border-radius: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .speed-display {
@@ -107,21 +107,6 @@
             color: #e53e3e;
             margin-top: 1rem;
         }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid var(--secondary-text);
-            border-radius: 50%;
-            border-top-color: var(--primary-color);
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body>
@@ -151,7 +136,6 @@
     </div>
 
     <script>
-        // State management
         const state = {
             isTracking: false,
             watchId: null,
@@ -159,65 +143,13 @@
             speeds: [],
             maxSpeed: 0,
             movingAverageWindow: [],
-            lastUpdateTime: null,
             stationaryCount: 0,
-            retryCount: 0,
-            maxRetries: 3
         };
 
-        // Constants
-        const ACCURACY_THRESHOLD = 20; // meters
+        const ACCURACY_THRESHOLD = 20;
         const MOVING_AVERAGE_SIZE = 5;
-        const MIN_MOVEMENT_THRESHOLD = 1; // meters
-        const SPEED_NOISE_THRESHOLD = 0.5; // km/h
-        const RETRY_DELAY = 5000; // 5 seconds
-        const SPEED_THRESHOLDS = {
-            SLOW: 20,
-            MEDIUM: 40,
-            FAST: 60,
-            VERY_FAST: 80
-        };
+        const SPEED_THRESHOLDS = { SLOW: 20, MEDIUM: 40, FAST: 60, VERY_FAST: 80 };
 
-        // Kalman Filter implementation
-        class KalmanFilter {
-            constructor(processNoise = 0.1, measurementNoise = 0.1, estimateError = 1) {
-                this.Q = processNoise;
-                this.R = measurementNoise;
-                this.P = estimateError;
-                this.x = null;
-                this.lastUpdateTime = null;
-            }
-
-            reset() {
-                this.x = null;
-                this.P = 1;
-                this.lastUpdateTime = null;
-            }
-
-            update(measurement, timestamp) {
-                if (this.x === null) {
-                    this.x = measurement;
-                    this.lastUpdateTime = timestamp;
-                    return measurement;
-                }
-
-                // Time update - prediction
-                const dt = (timestamp - this.lastUpdateTime) / 1000;
-                this.P = this.P + (this.Q * dt);
-
-                // Measurement update - correction
-                const K = this.P / (this.P + this.R);
-                this.x = this.x + K * (measurement - this.x);
-                this.P = (1 - K) * this.P;
-                this.lastUpdateTime = timestamp;
-
-                return this.x;
-            }
-        }
-
-        const kalmanFilter = new KalmanFilter();
-
-        // DOM Elements
         const elements = {
             speedDisplay: document.querySelector('.speed-display'),
             kphDisplay: document.querySelector('.kph'),
@@ -226,259 +158,97 @@
             avgSpeedDisplay: document.querySelector('.avg-speed'),
             statusDisplay: document.querySelector('.status'),
             errorDisplay: document.querySelector('.error'),
-            button: document.querySelector('.button')
+            button: document.querySelector('.button'),
         };
 
-        // Check GPS availability
-        function checkGPSAvailability() {
-            if ('geolocation' in navigator) {
-                navigator.geolocation.getCurrentPosition(
-                    () => {
-                        elements.button.disabled = false;
-                        elements.statusDisplay.textContent = 'GPS available. Ready to start.';
-                    },
-                    (error) => {
-                        handleError(error);
-                        elements.button.disabled = true;
-                    }
-                );
-            } else {
-                handleError({ message: 'Geolocation is not supported by this device.' });
-                elements.button.disabled = true;
+        const kalmanFilter = new (class {
+            constructor(processNoise = 0.1, measurementNoise = 0.1, estimateError = 1) {
+                this.Q = processNoise;
+                this.R = measurementNoise;
+                this.P = estimateError;
+                this.x = null;
             }
-        }
 
-        // Reset all state
+            update(measurement) {
+                if (this.x === null) {
+                    this.x = measurement;
+                    return this.x;
+                }
+
+                const K = this.P / (this.P + this.R);
+                this.x += K * (measurement - this.x);
+                this.P = (1 - K) * this.P + this.Q;
+                return this.x;
+            }
+
+            reset() {
+                this.x = null;
+                this.P = 1;
+            }
+        })();
+
         function resetState() {
             state.speeds = [];
             state.maxSpeed = 0;
             state.movingAverageWindow = [];
-            state.lastPosition = null;
             state.stationaryCount = 0;
-            state.retryCount = 0;
             kalmanFilter.reset();
-            
-            // Reset displays
-            updateSpeedDisplay(0);
+
+            elements.speedDisplay.textContent = '0';
+            elements.kphDisplay.textContent = '0 km/h';
+            elements.mphDisplay.textContent = '0 mph';
             elements.maxSpeedDisplay.textContent = '0 km/h';
             elements.avgSpeedDisplay.textContent = '0 km/h';
         }
 
-        // Moving average calculation
-        function calculateMovingAverage(speed) {
-            state.movingAverageWindow.push(speed);
-            if (state.movingAverageWindow.length > MOVING_AVERAGE_SIZE) {
-                state.movingAverageWindow.shift();
-            }
-            return state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
-        }
-
-        // Update speed display
         function updateSpeedDisplay(speedKph) {
-            if (speedKph < SPEED_NOISE_THRESHOLD) speedKph = 0;
-            
             elements.speedDisplay.textContent = Math.round(speedKph);
             elements.kphDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
             elements.mphDisplay.textContent = `${(speedKph * 0.621371).toFixed(1)} mph`;
-
-            elements.speedDisplay.className = 'speed-display';
-            if (speedKph < SPEED_THRESHOLDS.SLOW) {
-                elements.speedDisplay.classList.add('speed-slow');
-            } else if (speedKph < SPEED_THRESHOLDS.MEDIUM) {
-                elements.speedDisplay.classList.add('speed-medium');
-            } else if (speedKph < SPEED_THRESHOLDS.FAST) {
-                elements.speedDisplay.classList.add('speed-fast');
-            } else {
-                elements.speedDisplay.classList.add('speed-very-fast');
-            }
         }
 
-        // Update status message
-        function updateStatus(message) {
-            elements.statusDisplay.textContent = message;
+        function toggleTracking() {
+            state.isTracking ? stopTracking() : startTracking();
         }
 
-        // Handle GPS position updates
-        function handlePositionUpdate(position) {
-            const timestamp = position.timestamp || Date.now();
-            const { latitude, longitude, accuracy } = position.coords;
-
-            if (accuracy > ACCURACY_THRESHOLD) {
-                updateStatus(`Low GPS accuracy (${Math.round(accuracy)}m), waiting for better signal...`);
-                return;
-            }
-
-            if (state.lastPosition) {
-                const distance = haversineDistance(
-                    state.lastPosition.latitude,
-                    state.lastPosition.longitude,
-                    latitude,
-                    longitude
-                );
-
-                const timeChange = (timestamp - state.lastPosition.timestamp) / 1000; // seconds
-
-                if (timeChange > 0 && distance >= MIN_MOVEMENT_THRESHOLD) {
-                    const rawSpeedKph = (distance / timeChange) * 3.6; // m/s to km/h
-                    const filteredSpeed = kalmanFilter.update(rawSpeedKph, timestamp);
-                    const avgSpeed = calculateMovingAverage(filteredSpeed);
-
-                    state.speeds.push(filteredSpeed);
-                    if (state.speeds.length > 100) state.speeds.shift();
-
-                    if (filteredSpeed > state.maxSpeed) {
-                        state.maxSpeed = filteredSpeed;
-                        elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
-                    }
-
-                    elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
-                    updateSpeedDisplay(filteredSpeed);
-
-                    if (filteredSpeed < 5) {
-                        state.stationaryCount++;
-                        if (state.stationaryCount > 10) {
-                            updateStatus('Stationary');
-                        }
-                    } else {
-                        state.stationaryCount = 0;
-                        updateStatus('Tracking...');
-                    }
-                }
-            }
-
-            state.lastPosition = {
-                latitude,
-                longitude,
-                timestamp
-            };
-        }
-
-        // Haversine formula for distance
-        function haversineDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Earth radius in meters
-            const toRadians = (deg) => (deg * Math.PI) / 180;
-            const dLat = toRadians(lat2 - lat1);
-            const dLon = toRadians(lon2 - lon1);
-
-            const a = Math.sin(dLat / 2) ** 2 +
-                      Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        }
-
-        // Handle errors with retry mechanism
-        function handleError(error) {
-            let errorMessage = '';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMessage = 'GPS access denied. Please enable GPS permissions.';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMessage = 'GPS position unavailable. Please check your GPS signal.';
-                    if (state.retryCount < state.maxRetries) {
-                        setTimeout(() => {
-                            state.retryCount++;
-                            startTracking();
-                        }, RETRY_DELAY);
-                        errorMessage += ` Retrying (${state.retryCount}/${state.maxRetries})...`;
-                    }
-                    break;
-                case error.TIMEOUT:
-                    errorMessage = 'GPS request timed out.';
-                    break;
-                default:
-                    errorMessage = `GPS Error: ${error.message}`;
-            }
-            elements.errorDisplay.textContent = errorMessage;
-        }
-
-        // Start tracking
         function startTracking() {
-            if (state.isTracking) return;
-
             resetState();
             state.isTracking = true;
             elements.button.textContent = 'Stop Tracking';
-            updateStatus('Starting GPS tracking...');
-            elements.errorDisplay.textContent = '';
 
-            try {
-                state.watchId = navigator.geolocation.watchPosition(
-                    handlePositionUpdate,
-                    handleError,
-                    {
-                        enableHighAccuracy: true,
-                        maximumAge: 0,
-                        timeout: 10000
+            state.watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { speed } = position.coords;
+                    if (speed !== null && position.coords.accuracy < ACCURACY_THRESHOLD) {
+                        const speedKph = kalmanFilter.update(speed * 3.6);
+                        updateSpeedDisplay(speedKph);
                     }
-                );
-
-                document.addEventListener('visibilitychange', handleVisibilityChange);
-            } catch (error) {
-                handleError(error);
-                stopTracking();
-            }
+                },
+                (error) => {
+                    elements.errorDisplay.textContent = error.message;
+                    stopTracking();
+                },
+                { enableHighAccuracy: true }
+            );
         }
 
-        // Stop tracking
         function stopTracking() {
-            if (!state.isTracking) return;
-
-            state.isTracking = false;
-            elements.button.textContent = 'Start Tracking';
-            updateStatus('Tracking stopped.');
-            elements.errorDisplay.textContent = '';
-
             if (state.watchId !== null) {
                 navigator.geolocation.clearWatch(state.watchId);
                 state.watchId = null;
             }
-
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            state.isTracking = false;
+            elements.button.textContent = 'Start Tracking';
         }
 
-        // Handle visibility changes
-        function handleVisibilityChange() {
-            if (document.visibilityState === 'hidden') {
-                updateStatus('App in background. GPS accuracy may be reduced.');
-            } else if (state.isTracking) {
-                resetState();
-                updateStatus('Resumed tracking.');
-                kalmanFilter.reset();
-                startTracking();
-            }
-        }
-
-        // Toggle tracking
-        function toggleTracking() {
-            if (state.isTracking) {
-                stopTracking();
+        window.onload = () => {
+            if ('geolocation' in navigator) {
+                elements.statusDisplay.textContent = 'GPS ready.';
+                elements.button.disabled = false;
             } else {
-                startTracking();
+                elements.statusDisplay.textContent = 'GPS not supported.';
             }
-        }
-
-        // Handle page unload
-        window.addEventListener('beforeunload', () => {
-            if (state.isTracking) {
-                stopTracking();
-            }
-        });
-
-        // Handle device orientation changes
-        window.addEventListener('orientationchange', () => {
-            if (state.isTracking) {
-                updateStatus('Device orientation changed. Recalibrating...');
-                setTimeout(() => {
-                    if (state.isTracking) {
-                        updateStatus('Tracking...');
-                    }
-                }, 1000);
-            }
-        });
-
-        // Initialize app
-        checkGPSAvailability();
-
+        };
     </script>
 </body>
 </html>
