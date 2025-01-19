@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced GPS Speedometer</title>
+    <style>
+        :root {
+            --primary-color: #4299e1;
+            --background-color: #f0f2f5;
+            --card-background: white;
+            --text-color: #2d3748;
+            --secondary-text: #718096;
+            --accent-color: #63b3ed;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #63b3ed;
+                --background-color: #1a202c;
+                --card-background: #2d3748;
+                --text-color: #f7fafc;
+                --secondary-text: #cbd5e0;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: var(--background-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            background: var(--card-background);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .speed-display {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 1rem 0;
+            transition: color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .speed-unit {
+            font-size: 2rem;
+            color: var(--secondary-text);
+        }
+
+        .speed-slow { color: #48bb78; }
+        .speed-medium { color: #4299e1; }
+        .speed-fast { color: #ed8936; }
+        .speed-very-fast { color: #e53e3e; }
+
+        .units {
+            font-size: 1.5rem;
+            color: var(--secondary-text);
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .unit-toggle {
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            transition: background-color 0.3s;
+        }
+
+        .unit-toggle.active {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .stat-box {
+            background: var(--background-color);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--secondary-text);
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        .button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1rem auto;
+        }
+
+        .button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .button:disabled {
+            background: var(--secondary-text);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 1rem;
+            color: var(--secondary-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #48bb78;
+        }
+
+        .status-indicator.error {
+            background: #e53e3e;
+        }
+
+        .error-message {
+            color: #e53e3e;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .trip-stats {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--secondary-text);
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .speed-display {
+                font-size: 3rem;
+            }
+
+            .speed-unit {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GPS Speedometer</h1>
+
+        <div class="speed-display">
+            <span class="speed-value">0</span>
+            <span class="speed-unit">km/h</span>
+        </div>
+
+        <div class="units">
+            <span class="unit-toggle active" data-unit="kph">km/h</span>
+            <span class="unit-toggle" data-unit="mph">mph</span>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <span class="stat-label">Current Speed</span>
+                <div class="stat-value current-speed">0 km/h</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Max Speed</span>
+                <div class="stat-value max-speed">0 km/h</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Average Speed</span>
+                <div class="stat-value avg-speed">0 km/h</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Trip Time</span>
+                <div class="stat-value trip-time">00:00:00</div>
+            </div>
+        </div>
+
+        <button class="button" onclick="toggleTracking()" disabled>
+            <span class="button-text">Start Tracking</span>
+        </button>
+
+        <div class="status">
+            <div class="status-indicator"></div>
+            <span class="status-text">Checking GPS availability...</span>
+        </div>
+        <div class="error-message"></div>
+
+        <div class="trip-stats" style="display: none;">
+            <h2>Trip Summary</h2>
+            <div class="stats">
+                <div class="stat-box">
+                    <span class="stat-label">Distance</span>
+                    <div class="stat-value trip-distance">0.0 km</div>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Moving Time</span>
+                    <div class="stat-value moving-time">00:00:00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            isTracking: false,
+            watchId: null,
+            speeds: [],
+            maxSpeed: 0,
+            movingAverageWindow: [],
+            startTime: null,
+            tripDistance: 0,
+            lastPosition: null,
+            preferredUnit: 'kph',
+            movingTimeSeconds: 0,
+            lastUpdateTime: null
+        };
+
+        const ACCURACY_THRESHOLD = 20; // meters
+        const MOVING_AVERAGE_SIZE = 10;
+        const SPEED_THRESHOLDS = {
+            SLOW: 20,    // km/h
+            MEDIUM: 40,
+            FAST: 60,
+            VERY_FAST: 80
+        };
+        const MOVING_THRESHOLD = 1; // km/h
+
+        const elements = {
+            speedValue: document.querySelector('.speed-value'),
+            speedUnit: document.querySelector('.speed-unit'),
+            currentSpeed: document.querySelector('.current-speed'),
+            maxSpeedDisplay: document.querySelector('.max-speed'),
+            avgSpeedDisplay: document.querySelector('.avg-speed'),
+            statusText: document.querySelector('.status-text'),
+            statusIndicator: document.querySelector('.status-indicator'),
+            errorMessage: document.querySelector('.error-message'),
+            button: document.querySelector('.button'),
+            buttonText: document.querySelector('.button-text'),
+            tripStats: document.querySelector('.trip-stats'),
+            tripDistance: document.querySelector('.trip-distance'),
+            tripTime: document.querySelector('.trip-time'),
+            movingTime: document.querySelector('.moving-time'),
+            unitToggles: document.querySelectorAll('.unit-toggle')
+        };
+
+        class KalmanFilter {
+            constructor(processNoise = 0.1, measurementNoise = 1, estimateError = 1) {
+                this.Q = processNoise;
+                this.R = measurementNoise;
+                this.P = estimateError;
+                this.x = null;
+            }
+
+            update(measurement) {
+                if (this.x === null) {
+                    this.x = measurement;
+                    return measurement;
+                }
+
+                const predictedP = this.P + this.Q;
+                const K = predictedP / (predictedP + this.R);
+                this.x = this.x + K * (measurement - this.x);
+                this.P = (1 - K) * predictedP;
+
+                return this.x;
+            }
+
+            reset() {
+                this.x = null;
+                this.P = 1;
+            }
+        }
+
+        const kalmanFilter = new KalmanFilter(0.1, 3, 1);
+
+        function convertSpeed(speedKph, toUnit = state.preferredUnit) {
+            return toUnit === 'mph' ? speedKph * 0.621371 : speedKph;
+        }
+
+        function formatDistance(distanceKm, unit = state.preferredUnit) {
+            const distance = unit === 'mph' ? distanceKm * 0.621371 : distanceKm;
+            return `${distance.toFixed(1)} ${unit === 'mph' ? 'mi' : 'km'}`;
+        }
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function updateSpeedClass(speedKph) {
+            elements.speedValue.classList.remove('speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast');
+            
+            if (speedKph >= SPEED_THRESHOLDS.VERY_FAST) {
+                elements.speedValue.classList.add('speed-very-fast');
+            } else if (speedKph >= SPEED_THRESHOLDS.FAST) {
+                elements.speedValue.classList.add('speed-fast');
+            } else if (speedKph >= SPEED_THRESHOLDS.MEDIUM) {
+                elements.speedValue.classList.add('speed-medium');
+            } else if (speedKph >= SPEED_THRESHOLDS.SLOW) {
+                elements.speedValue.classList.add('speed-slow');
+            }
+        }
+
+        function updateStats(speedKph) {
+            // Update max speed
+            if (speedKph > state.maxSpeed) {
+                state.maxSpeed = speedKph;
+                elements.maxSpeedDisplay.textContent = `${formatSpeed(state.maxSpeed)} ${state.preferredUnit}`;
+            }
+
+            // Update moving average
+            state.movingAverageWindow.push(speedKph);
+            if (state.movingAverageWindow.length > MOVING_AVERAGE_SIZE) {
+                state.movingAverageWindow.shift();
+            }
+
+            const avgSpeed = state.movingAverageWindow.reduce((a, b) => a + b, 0) / 
+                           state.movingAverageWindow.length;
+            elements.avgSpeedDisplay.textContent = `${formatSpeed(avgSpeed)} ${state.preferredUnit}`;
+
+            // Update trip time
+            if (state.startTime) {
+                const totalSeconds = Math.floor((Date.now() - state.startTime) / 1000);
+                elements.tripTime.textContent = formatTime(totalSeconds);
+
+                // Update moving time if speed is above threshold
+                if (speedKph > MOVING_THRESHOLD && state.lastUpdateTime) {
+                    const timeDelta = (Date.now() - state.lastUpdateTime) / 1000;
+                    state.movingTimeSeconds += timeDelta;
+                    elements.movingTime.textContent = formatTime(state.movingTimeSeconds);
+                }
+            }
+
+            state.lastUpdateTime = Date.now();
+        }
+
+        function updateSpeedDisplay(speedKph) {
+            const displaySpeed = convertSpeed(speedKph);
+            elements.speedValue.textContent = Math.round(displaySpeed);
+            elements.speedUnit.textContent = state.preferredUnit;
+            elements.currentSpeed.textContent = `${formatSpeed(speedKph)} ${state.preferredUnit}`;
+            
+            updateSpeedClass(speedKph);
+            updateStats(speedKph);
+        }
+
+        function formatSpeed(speed) {
+            const convertedSpeed = convertSpeed(speed);
+            return convertedSpeed.toFixed(1);
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function resetState() {
+            state.speeds = [];
+            state.maxSpeed = 0;
+            state.movingAverageWindow = [];
+            state.startTime = null;
+            state.tripDistance = 0;
+            state.lastPosition = null;
+            state.movingTimeSeconds = 0;
+            state.lastUpdateTime = null;
+            kalmanFilter.reset();
+
+            updateSpeedDisplay(0);
+            elements.errorMessage.textContent = '';
+            elements.tripStats.style.display = 'none';
+            elements.tripDistance.textContent = '0.0 km';
+            elements.tripTime.textContent = '00:00:00';
+            elements.movingTime.textContent = '00:00:00';
+        }
+
+        function handlePositionError(error) {
+            let errorMessage = 'GPS Error: ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage += 'Location permission denied';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage += 'Location information unavailable';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage += 'Location request timed out';
+                    break;
+                default:
+                    errorMessage += error.message;
+            }
+            elements.errorMessage.textContent = errorMessage;
+            elements.statusIndicator.classList.add('error');
+            stopTracking();
+        }
+
+        function handlePosition(position) {
+            const { speed, accuracy, latitude, longitude } = position.coords;
+            
+            if (accuracy > ACCURACY_THRESHOLD) {
+                return;
+            }
+
+            // Calculate distance if we have a previous position
+            if (state.lastPosition) {
+                const distance = calculateDistance(
+                    state.lastPosition.latitude,
+                    state.lastPosition.longitude,
+                    latitude,
+                    longitude
+                );
+                state.tripDistance += distance;
+                elements.tripDistance.textContent = formatDistance(state.tripDistance);
+            }
+
+            // Store current position
+            state.lastPosition = { latitude, longitude };
+
+            // Convert speed from m/s to km/h and apply Kalman filter
+            const speedKph = speed !== null ? kalmanFilter.update(speed * 3.6) : 0;
+            updateSpeedDisplay(speedKph);
+        }
+
+        function startTracking() {
+            resetState();
+            state.isTracking = true;
+            state.startTime = Date.now();
+            elements.buttonText.textContent = 'Stop Tracking';
+            elements.tripStats.style.display = 'block';
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            };
+
+            state.watchId = navigator.geolocation.watchPosition(
+                handlePosition,
+                handlePositionError,
+                options
+            );
+        }
+
+        function stopTracking() {
+            if (state.watchId !== null) {
+                navigator.geolocation.clearWatch(state.watchId);
+                state.watchId = null;
+            }
+            state.isTracking = false;
+            elements.buttonText.textContent = 'Start Tracking';
+        }
+
+        function toggleTracking() {
+            state.isTracking ? stopTracking() : startTracking();
+        }
+
+        // Unit toggle handling
+        elements.unitToggles.forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const unit = toggle.dataset.unit;
+                state.preferredUnit = unit;
+                
+                elements.unitToggles.forEach(t => t.classList.remove('active'));
+                toggle.classList.add('active');
+                
+                // Update all displays with new unit
+                updateSpeedDisplay(kalmanFilter.x || 0);
+                elements.tripDistance.textContent = formatDistance(state.tripDistance);
+            });
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            if ('geolocation' in navigator) {
+                elements.statusText.textContent = 'GPS ready';
+                elements.button.disabled = false;
+            } else {
+                elements.statusText.textContent = 'GPS not supported';
+                elements.statusIndicator.classList.add('error');
+                elements.errorMessage.textContent = 'Your browser does not support geolocation';
+            }
+        });
+    </script>
+</body>
+</html>
