@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced GPS Speedometer</title>
+    <title>GPS Speedometer</title>
     <style>
         :root {
             --primary-color: #4299e1;
@@ -11,7 +11,6 @@
             --card-background: white;
             --text-color: #2d3748;
             --secondary-text: #718096;
-            --accent-color: #63b3ed;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -168,12 +167,6 @@
             font-size: 0.9rem;
         }
 
-        .trip-stats {
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--secondary-text);
-        }
-
         @media (max-width: 480px) {
             .container {
                 padding: 1rem;
@@ -217,8 +210,8 @@
                 <div class="stat-value avg-speed">0 km/h</div>
             </div>
             <div class="stat-box">
-                <span class="stat-label">Trip Time</span>
-                <div class="stat-value trip-time">00:00:00</div>
+                <span class="stat-label">Moving Time</span>
+                <div class="stat-value moving-time">00:00:00</div>
             </div>
         </div>
 
@@ -231,20 +224,6 @@
             <span class="status-text">Checking GPS availability...</span>
         </div>
         <div class="error-message"></div>
-
-        <div class="trip-stats" style="display: none;">
-            <h2>Trip Summary</h2>
-            <div class="stats">
-                <div class="stat-box">
-                    <span class="stat-label">Distance</span>
-                    <div class="stat-value trip-distance">0.0 km</div>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Moving Time</span>
-                    <div class="stat-value moving-time">00:00:00</div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
@@ -254,12 +233,9 @@
             speeds: [],
             maxSpeed: 0,
             movingAverageWindow: [],
-            startTime: null,
-            tripDistance: 0,
-            lastPosition: null,
-            preferredUnit: 'kph',
             movingTimeSeconds: 0,
-            lastUpdateTime: null
+            lastUpdateTime: null,
+            preferredUnit: 'kph'
         };
 
         const ACCURACY_THRESHOLD = 20; // meters
@@ -283,9 +259,6 @@
             errorMessage: document.querySelector('.error-message'),
             button: document.querySelector('.button'),
             buttonText: document.querySelector('.button-text'),
-            tripStats: document.querySelector('.trip-stats'),
-            tripDistance: document.querySelector('.trip-distance'),
-            tripTime: document.querySelector('.trip-time'),
             movingTime: document.querySelector('.moving-time'),
             unitToggles: document.querySelectorAll('.unit-toggle')
         };
@@ -322,11 +295,6 @@
 
         function convertSpeed(speedKph, toUnit = state.preferredUnit) {
             return toUnit === 'mph' ? speedKph * 0.621371 : speedKph;
-        }
-
-        function formatDistance(distanceKm, unit = state.preferredUnit) {
-            const distance = unit === 'mph' ? distanceKm * 0.621371 : distanceKm;
-            return `${distance.toFixed(1)} ${unit === 'mph' ? 'mi' : 'km'}`;
         }
 
         function formatTime(seconds) {
@@ -367,20 +335,19 @@
                            state.movingAverageWindow.length;
             elements.avgSpeedDisplay.textContent = `${formatSpeed(avgSpeed)} ${state.preferredUnit}`;
 
-            // Update trip time
-            if (state.startTime) {
-                const totalSeconds = Math.floor((Date.now() - state.startTime) / 1000);
-                elements.tripTime.textContent = formatTime(totalSeconds);
-
-                // Update moving time if speed is above threshold
-                if (speedKph > MOVING_THRESHOLD && state.lastUpdateTime) {
-                    const timeDelta = (Date.now() - state.lastUpdateTime) / 1000;
-                    state.movingTimeSeconds += timeDelta;
-                    elements.movingTime.textContent = formatTime(state.movingTimeSeconds);
-                }
+            // Update moving time if speed is above threshold
+            if (speedKph > MOVING_THRESHOLD && state.lastUpdateTime) {
+                const timeDelta = (Date.now() - state.lastUpdateTime) / 1000;
+                state.movingTimeSeconds += timeDelta;
+                elements.movingTime.textContent = formatTime(state.movingTimeSeconds);
             }
 
             state.lastUpdateTime = Date.now();
+        }
+
+        function formatSpeed(speed) {
+            const convertedSpeed = convertSpeed(speed);
+            return convertedSpeed.toFixed(1);
         }
 
         function updateSpeedDisplay(speedKph) {
@@ -393,38 +360,16 @@
             updateStats(speedKph);
         }
 
-        function formatSpeed(speed) {
-            const convertedSpeed = convertSpeed(speed);
-            return convertedSpeed.toFixed(1);
-        }
-
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth's radius in kilometers
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                     Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-
         function resetState() {
             state.speeds = [];
             state.maxSpeed = 0;
             state.movingAverageWindow = [];
-            state.startTime = null;
-            state.tripDistance = 0;
-            state.lastPosition = null;
             state.movingTimeSeconds = 0;
             state.lastUpdateTime = null;
             kalmanFilter.reset();
 
             updateSpeedDisplay(0);
             elements.errorMessage.textContent = '';
-            elements.tripStats.style.display = 'none';
-            elements.tripDistance.textContent = '0.0 km';
-            elements.tripTime.textContent = '00:00:00';
             elements.movingTime.textContent = '00:00:00';
         }
 
@@ -449,26 +394,11 @@
         }
 
         function handlePosition(position) {
-            const { speed, accuracy, latitude, longitude } = position.coords;
+            const { speed, accuracy } = position.coords;
             
             if (accuracy > ACCURACY_THRESHOLD) {
                 return;
             }
-
-            // Calculate distance if we have a previous position
-            if (state.lastPosition) {
-                const distance = calculateDistance(
-                    state.lastPosition.latitude,
-                    state.lastPosition.longitude,
-                    latitude,
-                    longitude
-                );
-                state.tripDistance += distance;
-                elements.tripDistance.textContent = formatDistance(state.tripDistance);
-            }
-
-            // Store current position
-            state.lastPosition = { latitude, longitude };
 
             // Convert speed from m/s to km/h and apply Kalman filter
             const speedKph = speed !== null ? kalmanFilter.update(speed * 3.6) : 0;
@@ -478,9 +408,7 @@
         function startTracking() {
             resetState();
             state.isTracking = true;
-            state.startTime = Date.now();
             elements.buttonText.textContent = 'Stop Tracking';
-            elements.tripStats.style.display = 'block';
 
             const options = {
                 enableHighAccuracy: true,
@@ -519,7 +447,6 @@
                 
                 // Update all displays with new unit
                 updateSpeedDisplay(kalmanFilter.x || 0);
-                elements.tripDistance.textContent = formatDistance(state.tripDistance);
             });
         });
 
