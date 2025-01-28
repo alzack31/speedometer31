@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced GPS Speedometer</title>
+    <style>
+        /* Previous CSS remains unchanged */
+        :root {
+            --primary-color: #4299e1;
+            --background-color: #f0f2f5;
+            --card-background: white;
+            --text-color: #2d3748;
+            --secondary-text: #718096;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #63b3ed;
+                --background-color: #1a202c;
+                --card-background: #2d3748;
+                --text-color: #f7fafc;
+                --secondary-text: #cbd5e0;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: var(--background-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            background: var(--card-background);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .speed-display {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 1rem 0;
+            transition: color 0.3s;
+        }
+
+        .speed-slow { color: #48bb78; }
+        .speed-medium { color: #4299e1; }
+        .speed-fast { color: #ed8936; }
+        .speed-very-fast { color: #e53e3e; }
+
+        .units {
+            font-size: 1.5rem;
+            color: var(--secondary-text);
+            margin-bottom: 2rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+            text-align: left;
+        }
+
+        .stat-box {
+            background: var(--background-color);
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+
+        .button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .button:hover {
+            filter: brightness(1.1);
+        }
+
+        .button:disabled {
+            background: var(--secondary-text);
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 1rem;
+            color: var(--secondary-text);
+        }
+
+        .error {
+            color: #e53e3e;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: #63b3ed;">Enhanced GPS Speedometer</h1>
+        <div class="speed-display">0</div>
+        <div class="units">
+            <span class="kph">0 km/h</span> | 
+            <span class="mph">0 mph</span>
+        </div>
+        <div class="stats">
+            <div class="stat-box">
+                <div>Max Speed:</div>
+                <div class="max-speed">0 km/h</div>
+            </div>
+            <div class="stat-box">
+                <div>Average Speed:</div>
+                <div class="avg-speed">0 km/h</div>
+            </div>
+        </div>
+        <button class="button" onclick="toggleTracking()" disabled>Start Tracking</button>
+        <div class="status">Initializing sensors...</div>
+        <div class="error"></div>
+    </div>
+
+    <script>
+        const state = {
+            isTracking: false,
+            watchId: null,
+            updateInterval: 1000,
+            lastUpdate: 0,
+            velocity: 0,
+            sensorFusion: null,
+            worker: null,
+            kalmanFilter: null,
+            speeds: [],
+            maxSpeed: 0,
+            movingAverageWindow: []
+        };
+
+        const ACCURACY_THRESHOLD = 20;
+        const SPEED_THRESHOLDS = { SLOW: 20, MEDIUM: 40, FAST: 60, VERY_FAST: 80 };
+        const MOVING_AVERAGE_SIZE = 100;
+
+        const elements = {
+            speedDisplay: document.querySelector('.speed-display'),
+            kphDisplay: document.querySelector('.kph'),
+            mphDisplay: document.querySelector('.mph'),
+            maxSpeedDisplay: document.querySelector('.max-speed'),
+            avgSpeedDisplay: document.querySelector('.avg-speed'),
+            statusDisplay: document.querySelector('.status'),
+            errorDisplay: document.querySelector('.error'),
+            button: document.querySelector('.button'),
+        };
+
+        class AdaptiveKalmanFilter {
+            constructor() {
+                this.Q = 0.1;
+                this.R = 1;
+                this.P = 1;
+                this.x = null;
+            }
+
+            update(measurement, accuracy) {
+                if (this.x === null) this.x = measurement;
+                
+                this.R = Math.max(1, accuracy * 0.2);
+                this.Q = this.x > 5 ? 0.1 : 0.5;
+                
+                const predictedP = this.P + this.Q;
+                const K = predictedP / (predictedP + this.R);
+                this.x += K * (measurement - this.x);
+                this.P = (1 - K) * predictedP;
+                
+                return this.x;
+            }
+        }
+
+        class SensorFusion {
+            constructor() {
+                this.acceleration = { x: 0, y: 0, z: 0 };
+                this.orientation = { alpha: 0, beta: 0, gamma: 0 };
+                this.initSensors();
+            }
+
+            initSensors() {
+                if (window.DeviceMotionEvent) {
+                    window.addEventListener('devicemotion', e => {
+                        this.acceleration = e.acceleration;
+                    });
+                }
+
+                if (window.DeviceOrientationEvent) {
+                    window.addEventListener('deviceorientation', e => {
+                        this.orientation = {
+                            alpha: e.alpha,
+                            beta: e.beta,
+                            gamma: e.gamma
+                        };
+                    });
+                }
+            }
+
+            getAdjustedAcceleration() {
+                const rad = Math.PI / 180;
+                return {
+                    x: this.acceleration.x * Math.cos(this.orientation.beta * rad),
+                    y: this.acceleration.y * Math.cos(this.orientation.gamma * rad),
+                    z: this.acceleration.z
+                };
+            }
+        }
+
+        // Web Worker implementation
+        function createWorker() {
+            const workerCode = `
+                let filter;
+                self.addEventListener('message', (e) => {
+                    const { type, data } = e.data;
+                    if (type === 'init') {
+                        filter = new AdaptiveKalmanFilter();
+                    }
+                    if (type === 'position') {
+                        const speed = data.coords.speed * 3.6;
+                        const filtered = filter.update(speed, data.coords.accuracy);
+                        self.postMessage({ type: 'speed', speed: filtered });
+                    }
+                });
+
+                class AdaptiveKalmanFilter {
+                    ${AdaptiveKalmanFilter.toString()}
+                }
+            `;
+
+            return new Worker(URL.createObjectURL(
+                new Blob([workerCode], { type: 'application/javascript' })
+            ));
+        }
+
+        function updateSpeedDisplay(speedKph) {
+            elements.speedDisplay.textContent = Math.round(speedKph);
+            elements.kphDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
+            elements.mphDisplay.textContent = `${(speedKph * 0.621371).toFixed(1)} mph`;
+            updateSpeedClass(speedKph);
+            updateStats(speedKph);
+        }
+
+        function updateSpeedClass(speedKph) {
+            elements.speedDisplay.classList.remove(
+                'speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast'
+            );
+            
+            if (speedKph >= SPEED_THRESHOLDS.VERY_FAST) {
+                elements.speedDisplay.classList.add('speed-very-fast');
+            } else if (speedKph >= SPEED_THRESHOLDS.FAST) {
+                elements.speedDisplay.classList.add('speed-fast');
+            } else if (speedKph >= SPEED_THRESHOLDS.MEDIUM) {
+                elements.speedDisplay.classList.add('speed-medium');
+            } else if (speedKph >= SPEED_THRESHOLDS.SLOW) {
+                elements.speedDisplay.classList.add('speed-slow');
+            }
+        }
+
+        function updateStats(speedKph) {
+            state.maxSpeed = Math.max(state.maxSpeed, speedKph);
+            elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
+
+            state.movingAverageWindow.push(speedKph);
+            if (state.movingAverageWindow.length > MOVING_AVERAGE_SIZE) {
+                state.movingAverageWindow.shift();
+            }
+            const avg = state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
+            elements.avgSpeedDisplay.textContent = `${avg.toFixed(1)} km/h`;
+        }
+
+        function adjustUpdateRate(speedKph) {
+            let newInterval = 1000;
+            if (speedKph > 100) newInterval = 100;
+            else if (speedKph > 40) newInterval = 200;
+            else if (speedKph > 5) newInterval = 500;
+
+            if (newInterval !== state.updateInterval) {
+                state.updateInterval = newInterval;
+                navigator.geolocation.clearWatch(state.watchId);
+                state.watchId = navigator.geolocation.watchPosition(
+                    handlePosition,
+                    handlePositionError,
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: newInterval,
+                        timeout: newInterval * 2
+                    }
+                );
+            }
+        }
+
+        function handlePosition(position) {
+            if (!position.coords.speed) return;
+            
+            state.worker.postMessage({
+                type: 'position',
+                data: position
+            });
+
+            adjustUpdateRate(position.coords.speed * 3.6);
+        }
+
+        function handlePositionError(error) {
+            if (state.sensorFusion) {
+                const dt = (Date.now() - state.lastUpdate) / 1000;
+                const accel = state.sensorFusion.getAdjustedAcceleration();
+                state.velocity += accel.x * dt;
+                updateSpeedDisplay(Math.abs(state.velocity * 3.6));
+                elements.errorDisplay.textContent = 'GPS degraded - using sensor fusion';
+            }
+        }
+
+        function toggleTracking() {
+            if (state.isTracking) {
+                stopTracking();
+            } else {
+                startTracking();
+            }
+        }
+
+        function startTracking() {
+            state.isTracking = true;
+            state.worker = createWorker();
+            state.sensorFusion = new SensorFusion();
+            
+            state.worker.onmessage = (e) => {
+                if (e.data.type === 'speed') {
+                    updateSpeedDisplay(e.data.speed);
+                    state.lastUpdate = Date.now();
+                }
+            };
+
+            state.worker.postMessage({ type: 'init' });
+            elements.button.textContent = 'Stop Tracking';
+            elements.statusDisplay.textContent = 'Tracking...';
+            elements.errorDisplay.textContent = '';
+
+            state.watchId = navigator.geolocation.watchPosition(
+                handlePosition,
+                handlePositionError,
+                { enableHighAccuracy: true, maximumAge: 1000, timeout: 2000 }
+            );
+        }
+
+        function stopTracking() {
+            state.isTracking = false;
+            navigator.geolocation.clearWatch(state.watchId);
+            if (state.worker) state.worker.terminate();
+            elements.button.textContent = 'Start Tracking';
+            elements.statusDisplay.textContent = 'Ready';
+        }
+
+        window.addEventListener('load', () => {
+            if ('geolocation' in navigator) {
+                elements.button.disabled = false;
+                elements.statusDisplay.textContent = 'Ready to track';
+            } else {
+                elements.statusDisplay.textContent = 'Geolocation not supported';
+                elements.errorDisplay.textContent = 'This browser lacks geolocation support';
+            }
+        });
+    </script>
+</body>
+</html>
