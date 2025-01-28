@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced GPS Speedometer</title>
+    <title>GPS Speedometer</title>
     <style>
-        /* Previous CSS remains unchanged */
         :root {
             --primary-color: #4299e1;
             --background-color: #f0f2f5;
@@ -54,15 +53,33 @@
             transition: color 0.3s;
         }
 
+        .speed-standby { color: #4fd1c5; }
         .speed-slow { color: #48bb78; }
         .speed-medium { color: #4299e1; }
         .speed-fast { color: #ed8936; }
         .speed-very-fast { color: #e53e3e; }
 
-        .units {
-            font-size: 1.5rem;
+        .unit-selector {
+            margin: 1rem 0;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .unit-button {
+            background: var(--background-color);
             color: var(--secondary-text);
-            margin-bottom: 2rem;
+            border: 2px solid var(--secondary-text);
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .unit-button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
         }
 
         .stats {
@@ -112,24 +129,27 @@
 </head>
 <body>
     <div class="container">
-        <h1 style="color: #63b3ed;">Enhanced GPS Speedometer</h1>
-        <div class="speed-display">0</div>
-        <div class="units">
-            <span class="kph">0 km/h</span> | 
-            <span class="mph">0 mph</span>
+        <h1 style="color: #63b3ed;">GPS Speedometer</h1>
+        <div class="speed-display speed-standby">0</div>
+        
+        <div class="unit-selector">
+            <button class="unit-button active" onclick="toggleUnit('kph')">km/h</button>
+            <button class="unit-button" onclick="toggleUnit('mph')">mph</button>
         </div>
+
         <div class="stats">
             <div class="stat-box">
                 <div>Max Speed:</div>
-                <div class="max-speed">0 km/h</div>
+                <div class="max-speed">0.0 km/h</div>
             </div>
             <div class="stat-box">
                 <div>Average Speed:</div>
-                <div class="avg-speed">0 km/h</div>
+                <div class="avg-speed">0.0 km/h</div>
             </div>
         </div>
+
         <button class="button" onclick="toggleTracking()" disabled>Start Tracking</button>
-        <div class="status">Initializing sensors...</div>
+        <div class="status">Initializing...</div>
         <div class="error"></div>
     </div>
 
@@ -138,24 +158,24 @@
             isTracking: false,
             watchId: null,
             updateInterval: 1000,
-            lastUpdate: 0,
-            velocity: 0,
-            sensorFusion: null,
-            worker: null,
-            kalmanFilter: null,
             speeds: [],
             maxSpeed: 0,
-            movingAverageWindow: []
+            movingAverageWindow: [],
+            kalmanFilter: null,
+            currentUnit: 'kph'
         };
 
         const ACCURACY_THRESHOLD = 20;
-        const SPEED_THRESHOLDS = { SLOW: 20, MEDIUM: 40, FAST: 60, VERY_FAST: 80 };
+        const SPEED_THRESHOLDS = { 
+            STANDBY: 20,    // 0-20 km/h
+            SLOW: 40,       // 20-40 km/h
+            MEDIUM: 60,     // 40-60 km/h
+            FAST: 80        // 60-80 km/h
+        };
         const MOVING_AVERAGE_SIZE = 100;
 
         const elements = {
             speedDisplay: document.querySelector('.speed-display'),
-            kphDisplay: document.querySelector('.kph'),
-            mphDisplay: document.querySelector('.mph'),
             maxSpeedDisplay: document.querySelector('.max-speed'),
             avgSpeedDisplay: document.querySelector('.avg-speed'),
             statusDisplay: document.querySelector('.status'),
@@ -163,124 +183,110 @@
             button: document.querySelector('.button'),
         };
 
-        class AdaptiveKalmanFilter {
-            constructor() {
-                this.Q = 0.1;
-                this.R = 1;
+        class KalmanFilter {
+            constructor(processNoise = 0.1, measurementNoise = 1) {
+                this.Q = processNoise;
+                this.R = measurementNoise;
                 this.P = 1;
                 this.x = null;
             }
 
-            update(measurement, accuracy) {
-                if (this.x === null) this.x = measurement;
-                
-                this.R = Math.max(1, accuracy * 0.2);
-                this.Q = this.x > 5 ? 0.1 : 0.5;
-                
+            update(measurement) {
+                if (this.x === null) {
+                    this.x = measurement;
+                    return measurement;
+                }
+
                 const predictedP = this.P + this.Q;
                 const K = predictedP / (predictedP + this.R);
                 this.x += K * (measurement - this.x);
                 this.P = (1 - K) * predictedP;
-                
+
                 return this.x;
             }
         }
 
-        class SensorFusion {
-            constructor() {
-                this.acceleration = { x: 0, y: 0, z: 0 };
-                this.orientation = { alpha: 0, beta: 0, gamma: 0 };
-                this.initSensors();
+        function updateSpeedClass(speedKph) {
+            elements.speedDisplay.classList.remove(
+                'speed-standby', 'speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast'
+            );
+
+            if (speedKph >= SPEED_THRESHOLDS.FAST) {
+                elements.speedDisplay.classList.add('speed-very-fast');
+            } else if (speedKph >= SPEED_THRESHOLDS.MEDIUM) {
+                elements.speedDisplay.classList.add('speed-fast');
+            } else if (speedKph >= SPEED_THRESHOLDS.SLOW) {
+                elements.speedDisplay.classList.add('speed-medium');
+            } else if (speedKph >= SPEED_THRESHOLDS.STANDBY) {
+                elements.speedDisplay.classList.add('speed-slow');
+            } else {
+                elements.speedDisplay.classList.add('speed-standby');
             }
-
-            initSensors() {
-                if (window.DeviceMotionEvent) {
-                    window.addEventListener('devicemotion', e => {
-                        this.acceleration = e.acceleration;
-                    });
-                }
-
-                if (window.DeviceOrientationEvent) {
-                    window.addEventListener('deviceorientation', e => {
-                        this.orientation = {
-                            alpha: e.alpha,
-                            beta: e.beta,
-                            gamma: e.gamma
-                        };
-                    });
-                }
-            }
-
-            getAdjustedAcceleration() {
-                const rad = Math.PI / 180;
-                return {
-                    x: this.acceleration.x * Math.cos(this.orientation.beta * rad),
-                    y: this.acceleration.y * Math.cos(this.orientation.gamma * rad),
-                    z: this.acceleration.z
-                };
-            }
-        }
-
-        // Web Worker implementation
-        function createWorker() {
-            const workerCode = `
-                let filter;
-                self.addEventListener('message', (e) => {
-                    const { type, data } = e.data;
-                    if (type === 'init') {
-                        filter = new AdaptiveKalmanFilter();
-                    }
-                    if (type === 'position') {
-                        const speed = data.coords.speed * 3.6;
-                        const filtered = filter.update(speed, data.coords.accuracy);
-                        self.postMessage({ type: 'speed', speed: filtered });
-                    }
-                });
-
-                class AdaptiveKalmanFilter {
-                    ${AdaptiveKalmanFilter.toString()}
-                }
-            `;
-
-            return new Worker(URL.createObjectURL(
-                new Blob([workerCode], { type: 'application/javascript' })
-            ));
         }
 
         function updateSpeedDisplay(speedKph) {
-            elements.speedDisplay.textContent = Math.round(speedKph);
-            elements.kphDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
-            elements.mphDisplay.textContent = `${(speedKph * 0.621371).toFixed(1)} mph`;
+            let displaySpeed;
+            if (state.currentUnit === 'kph') {
+                displaySpeed = speedKph;
+            } else {
+                displaySpeed = speedKph * 0.621371;
+            }
+            
+            elements.speedDisplay.textContent = Math.round(displaySpeed);
             updateSpeedClass(speedKph);
             updateStats(speedKph);
         }
 
-        function updateSpeedClass(speedKph) {
-            elements.speedDisplay.classList.remove(
-                'speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast'
-            );
-            
-            if (speedKph >= SPEED_THRESHOLDS.VERY_FAST) {
-                elements.speedDisplay.classList.add('speed-very-fast');
-            } else if (speedKph >= SPEED_THRESHOLDS.FAST) {
-                elements.speedDisplay.classList.add('speed-fast');
-            } else if (speedKph >= SPEED_THRESHOLDS.MEDIUM) {
-                elements.speedDisplay.classList.add('speed-medium');
-            } else if (speedKph >= SPEED_THRESHOLDS.SLOW) {
-                elements.speedDisplay.classList.add('speed-slow');
-            }
-        }
-
         function updateStats(speedKph) {
-            state.maxSpeed = Math.max(state.maxSpeed, speedKph);
-            elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
+            // Update max speed
+            if (speedKph > state.maxSpeed) {
+                state.maxSpeed = speedKph;
+            }
 
+            // Update moving average
             state.movingAverageWindow.push(speedKph);
             if (state.movingAverageWindow.length > MOVING_AVERAGE_SIZE) {
                 state.movingAverageWindow.shift();
             }
-            const avg = state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
-            elements.avgSpeedDisplay.textContent = `${avg.toFixed(1)} km/h`;
+            const avgSpeed = state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
+
+            // Convert for display
+            if (state.currentUnit === 'mph') {
+                elements.maxSpeedDisplay.textContent = `${(state.maxSpeed * 0.621371).toFixed(1)} mph`;
+                elements.avgSpeedDisplay.textContent = `${(avgSpeed * 0.621371).toFixed(1)} mph`;
+            } else {
+                elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
+                elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
+            }
+        }
+
+        function toggleUnit(unit) {
+            if (unit === state.currentUnit) return;
+            
+            state.currentUnit = unit;
+            document.querySelectorAll('.unit-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeBtn = document.querySelector(`[onclick="toggleUnit('${unit}')"]`);
+            activeBtn.classList.add('active');
+            
+            // Refresh display with current data
+            if (state.speeds.length > 0) {
+                const lastSpeed = state.speeds[state.speeds.length - 1];
+                updateSpeedDisplay(lastSpeed);
+            }
+        }
+
+        function handlePosition(position) {
+            if (!position.coords.speed || position.coords.accuracy > ACCURACY_THRESHOLD) return;
+            
+            const rawSpeed = position.coords.speed * 3.6; // Convert m/s to km/h
+            const filteredSpeed = state.kalmanFilter.update(rawSpeed);
+            
+            state.speeds.push(filteredSpeed);
+            updateSpeedDisplay(filteredSpeed);
+            adjustUpdateRate(filteredSpeed);
         }
 
         function adjustUpdateRate(speedKph) {
@@ -295,57 +301,38 @@
                 state.watchId = navigator.geolocation.watchPosition(
                     handlePosition,
                     handlePositionError,
-                    {
-                        enableHighAccuracy: true,
-                        maximumAge: newInterval,
-                        timeout: newInterval * 2
-                    }
+                    { enableHighAccuracy: true, maximumAge: newInterval }
                 );
             }
         }
 
-        function handlePosition(position) {
-            if (!position.coords.speed) return;
-            
-            state.worker.postMessage({
-                type: 'position',
-                data: position
-            });
-
-            adjustUpdateRate(position.coords.speed * 3.6);
-        }
-
         function handlePositionError(error) {
-            if (state.sensorFusion) {
-                const dt = (Date.now() - state.lastUpdate) / 1000;
-                const accel = state.sensorFusion.getAdjustedAcceleration();
-                state.velocity += accel.x * dt;
-                updateSpeedDisplay(Math.abs(state.velocity * 3.6));
-                elements.errorDisplay.textContent = 'GPS degraded - using sensor fusion';
+            let message = 'GPS Error: ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message += 'Permission denied'; break;
+                case error.POSITION_UNAVAILABLE:
+                    message += 'Position unavailable'; break;
+                case error.TIMEOUT:
+                    message += 'Request timeout'; break;
+                default:
+                    message += error.message;
             }
+            elements.errorDisplay.textContent = message;
+            stopTracking();
         }
 
         function toggleTracking() {
-            if (state.isTracking) {
-                stopTracking();
-            } else {
-                startTracking();
-            }
+            state.isTracking ? stopTracking() : startTracking();
         }
 
         function startTracking() {
             state.isTracking = true;
-            state.worker = createWorker();
-            state.sensorFusion = new SensorFusion();
+            state.kalmanFilter = new KalmanFilter();
+            state.speeds = [];
+            state.maxSpeed = 0;
+            state.movingAverageWindow = [];
             
-            state.worker.onmessage = (e) => {
-                if (e.data.type === 'speed') {
-                    updateSpeedDisplay(e.data.speed);
-                    state.lastUpdate = Date.now();
-                }
-            };
-
-            state.worker.postMessage({ type: 'init' });
             elements.button.textContent = 'Stop Tracking';
             elements.statusDisplay.textContent = 'Tracking...';
             elements.errorDisplay.textContent = '';
@@ -353,14 +340,13 @@
             state.watchId = navigator.geolocation.watchPosition(
                 handlePosition,
                 handlePositionError,
-                { enableHighAccuracy: true, maximumAge: 1000, timeout: 2000 }
+                { enableHighAccuracy: true, maximumAge: 1000 }
             );
         }
 
         function stopTracking() {
             state.isTracking = false;
             navigator.geolocation.clearWatch(state.watchId);
-            if (state.worker) state.worker.terminate();
             elements.button.textContent = 'Start Tracking';
             elements.statusDisplay.textContent = 'Ready';
         }
