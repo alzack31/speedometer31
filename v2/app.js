@@ -121,10 +121,7 @@ function toggleUnit(unit) {
     const activeBtn = document.querySelector(`[onclick="toggleUnit('${unit}')"]`);
     activeBtn.classList.add('active');
     
-    if (state.speeds.length > 0) {
-        const lastSpeed = state.speeds[state.speeds.length - 1];
-        updateSpeedDisplay(lastSpeed);
-    }
+    updateSpeedDisplay(state.speeds.length > 0 ? state.speeds[state.speeds.length - 1] : 0);
 }
 
 function handlePosition(position) {
