@@ -128,7 +128,7 @@ function toggleUnit(unit) {
 }
 
 function handlePosition(position) {
-    if (!position.coords.speed || position.coords.accuracy > ACCURACY_THRESHOLD) return;
+    if (position.coords.speed == null || position.coords.accuracy > ACCURACY_THRESHOLD) return;
     
     const rawSpeed = position.coords.speed * 3.6;
     const filteredSpeed = state.kalmanFilter.update(rawSpeed);
