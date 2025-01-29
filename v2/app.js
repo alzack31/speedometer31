@@ -16,7 +16,7 @@ const SPEED_THRESHOLDS = {
     MEDIUM: 60,
     FAST: 80
 };
-const MOVING_AVERAGE_DURATION = 60 * 1000; // 60-second window
+const MOVING_AVERAGE_DURATION = 60 * 1000;
 const elements = {
     speedDisplay: document.querySelector('.speed-display'),
     maxSpeedDisplay: document.querySelector('.max-speed'),
@@ -81,18 +81,25 @@ function updateSpeedDisplay(speedKph) {
 }
 
 function updateStats(speedKph) {
+    // Update max speed
     if (speedKph > state.maxSpeed) {
         state.maxSpeed = speedKph;
     }
 
+    // Update moving average window
     const now = Date.now();
     state.movingAverageWindow = state.movingAverageWindow.filter(
-       entry => now - entry.timestamp < MOVING_AVERAGE_DURATION
-     );
+        entry => now - entry.timestamp < MOVING_AVERAGE_DURATION
+    );
     state.movingAverageWindow.push({ speed: speedKph, timestamp: now });
     
-    const avgSpeed = state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
+    // Calculate average with safety checks
+    const total = state.movingAverageWindow.reduce((sum, entry) => sum + entry.speed, 0);
+    const avgSpeed = state.movingAverageWindow.length > 0 
+        ? total / state.movingAverageWindow.length 
+        : 0;
 
+    // Update displays
     if (state.currentUnit === 'mph') {
         elements.maxSpeedDisplay.textContent = `${(state.maxSpeed * 0.621371).toFixed(1)} mph`;
         elements.avgSpeedDisplay.textContent = `${(avgSpeed * 0.621371).toFixed(1)} mph`;
@@ -101,6 +108,7 @@ function updateStats(speedKph) {
         elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
     }
 }
+
 
 function toggleUnit(unit) {
     if (unit === state.currentUnit) return;
