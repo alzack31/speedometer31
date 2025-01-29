@@ -16,8 +16,7 @@ const SPEED_THRESHOLDS = {
     MEDIUM: 60,
     FAST: 80
 };
-const MOVING_AVERAGE_SIZE = 100;
-
+const MOVING_AVERAGE_DURATION = 60 * 1000; // 60-second window
 const elements = {
     speedDisplay: document.querySelector('.speed-display'),
     maxSpeedDisplay: document.querySelector('.max-speed'),
@@ -86,10 +85,12 @@ function updateStats(speedKph) {
         state.maxSpeed = speedKph;
     }
 
-    state.movingAverageWindow.push(speedKph);
-    if (state.movingAverageWindow.length > MOVING_AVERAGE_SIZE) {
-        state.movingAverageWindow.shift();
-    }
+    const now = Date.now();
+    state.movingAverageWindow = state.movingAverageWindow.filter(
+       entry => now - entry.timestamp < MOVING_AVERAGE_DURATION
+     );
+    state.movingAverageWindow.push({ speed: speedKph, timestamp: now });
+    
     const avgSpeed = state.movingAverageWindow.reduce((a, b) => a + b, 0) / state.movingAverageWindow.length;
 
     if (state.currentUnit === 'mph') {
