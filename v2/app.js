@@ -182,6 +182,7 @@ function startTracking() {
         handlePositionError,
         { enableHighAccuracy: true, maximumAge: 1000 }
     );
+    elements.errorDisplay.textContent = '';
 }
 
 function stopTracking() {
