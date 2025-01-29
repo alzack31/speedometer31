@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Speedometer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: #63b3ed;">GPS Speedometer</h1>
+        <div class="speed-display speed-standby">0</div>
+        
+        <div class="unit-selector">
+            <button class="unit-button active" onclick="toggleUnit('kph')">km/h</button>
+            <button class="unit-button" onclick="toggleUnit('mph')">mph</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div>Max Speed:</div>
+                <div class="max-speed">0.0 km/h</div>
+            </div>
+            <div class="stat-box">
+                <div>Average Speed:</div>
+                <div class="avg-speed">0.0 km/h</div>
+            </div>
+        </div>
+
+        <button class="button" onclick="toggleTracking()" disabled>Start Tracking</button>
+        <div class="status">Initializing...</div>
+        <div class="error"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+  </html>
