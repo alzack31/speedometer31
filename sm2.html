@@ -3,6 +3,14 @@
 <head>
     <title>Timed Flashlight</title>
     <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --primary-color: #00ff88;
+            --secondary-color: #2d2d2d;
+            --border-radius: 12px;
+        }
+
         body {
             display: flex;
             flex-direction: column;
@@ -10,39 +18,96 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Arial', sans-serif;
         }
+
         #controls {
             text-align: center;
+            padding: 2rem;
+            background: var(--secondary-color);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
-        #flashlightBtn {
-            padding: 20px 40px;
-            font-size: 24px;
-            cursor: pointer;
-            border-radius: 10px;
-            border: none;
-            background-color: #4CAF50;
-            color: white;
-            margin: 10px;
+
+        .input-group {
+            margin: 1.5rem 0;
         }
+
         #minutesInput {
-            padding: 10px;
-            font-size: 18px;
-            width: 100px;
-            margin: 10px;
+            padding: 12px 20px;
+            font-size: 1.2rem;
+            width: 120px;
+            background: var(--bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius);
+            color: var(--text-color);
+            text-align: center;
+            transition: all 0.3s ease;
         }
-        #timer {
-            font-size: 24px;
+
+        #minutesInput:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--primary-color);
+        }
+
+        #flashlightBtn {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            border: none;
+            background-color: var(--primary-color);
+            color: var(--bg-color);
             margin: 10px;
-            display: none;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        #flashlightBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #flashlightBtn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        #timer {
+            font-size: 2.5rem;
+            margin: 2rem 0;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #timeRemaining {
+            color: var(--primary-color);
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+        }
+
+        .instructions {
+            color: #888;
+            margin-top: 2rem;
+            max-width: 300px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
     <div id="controls">
-        <input type="number" id="minutesInput" min="1" value="1" placeholder="Minutes">
+        <div class="input-group">
+            <input type="number" id="minutesInput" min="0.1" step="0.1" value="1.0" 
+                   placeholder="Minutes" inputmode="decimal">
+        </div>
         <button id="flashlightBtn">Start Flashlight</button>
-        <div id="timer">Time remaining: <span id="timeRemaining">0:00</span></div>
+        <div id="timer">
+            <div id="timeRemaining">0:00</div>
+        </div>
+    </div>
+    <div class="instructions">
+        Enter minutes (e.g., 1.5 = 1 minute 30 seconds)
     </div>
     <video id="cameraPreview" style="display: none;"></video>
 
@@ -55,12 +120,13 @@
         async function toggleFlashlight() {
             try {
                 if (!isFlashOn) {
-                    const minutes = parseInt(document.getElementById('minutesInput').value) || 1;
-                    if (minutes < 1) {
-                        alert('Please enter at least 1 minute');
+                    const minutesInput = parseFloat(document.getElementById('minutesInput').value);
+                    if (isNaN(minutesInput) || minutesInput <= 0) {
+                        alert('Please enter a valid positive number');
                         return;
                     }
 
+                    // Request camera access
                     mediaStream = await navigator.mediaDevices.getUserMedia({
                         video: { facingMode: 'environment' }
                     });
@@ -70,9 +136,11 @@
                     
                     isFlashOn = true;
                     flashlightBtn.textContent = 'Stop Flashlight';
-                    document.getElementById('timer').style.display = 'block';
+                    flashlightBtn.style.backgroundColor = '#ff4444';
+                    document.getElementById('minutesInput').disabled = true;
                     
-                    startCountdown(minutes * 60);
+                    // Start countdown with decimal minutes converted to seconds
+                    startCountdown(minutesInput * 60);
                 } else {
                     stopFlashlight();
                 }
@@ -82,21 +150,28 @@
             }
         }
 
-        function startCountdown(seconds) {
-            endTime = Date.now() + seconds * 1000;
+        function startCountdown(totalSeconds) {
+            endTime = Date.now() + totalSeconds * 1000;
+            
+            updateTimerDisplay(); // Initial update
             
             countdownTimer = setInterval(() => {
-                const remaining = Math.max(0, endTime - Date.now());
-                const minutes = Math.floor(remaining / 60000);
-                const seconds = Math.floor((remaining % 60000) / 1000);
-                
-                document.getElementById('timeRemaining').textContent = 
-                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
+                const remaining = endTime - Date.now();
                 if (remaining <= 0) {
                     stopFlashlight();
                 }
-            }, 1000);
+                updateTimerDisplay();
+            }, 200);
+        }
+
+        function updateTimerDisplay() {
+            const remaining = Math.max(0, endTime - Date.now());
+            const totalSeconds = Math.ceil(remaining / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            
+            document.getElementById('timeRemaining').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
 
         function stopFlashlight() {
@@ -106,16 +181,26 @@
             }
             isFlashOn = false;
             flashlightBtn.textContent = 'Start Flashlight';
-            document.getElementById('timer').style.display = 'none';
+            flashlightBtn.style.backgroundColor = var(--primary-color);
+            document.getElementById('minutesInput').disabled = false;
             
             if (countdownTimer) {
                 clearInterval(countdownTimer);
                 countdownTimer = null;
             }
+            
+            document.getElementById('timeRemaining').textContent = '0:00';
         }
 
         const flashlightBtn = document.getElementById('flashlightBtn');
         flashlightBtn.addEventListener('click', toggleFlashlight);
+
+        // Input validation
+        document.getElementById('minutesInput').addEventListener('input', (e) => {
+            let value = parseFloat(e.target.value);
+            if (value < 0.1) e.target.value = 0.1;
+            if (value > 60) e.target.value = 60;
+        });
     </script>
 </body>
 </html>
