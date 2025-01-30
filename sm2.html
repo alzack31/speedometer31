@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Timed Flashlight</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #controls {
+            text-align: center;
+        }
+        #flashlightBtn {
+            padding: 20px 40px;
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 10px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            margin: 10px;
+        }
+        #minutesInput {
+            padding: 10px;
+            font-size: 18px;
+            width: 100px;
+            margin: 10px;
+        }
+        #timer {
+            font-size: 24px;
+            margin: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="number" id="minutesInput" min="1" value="1" placeholder="Minutes">
+        <button id="flashlightBtn">Start Flashlight</button>
+        <div id="timer">Time remaining: <span id="timeRemaining">0:00</span></div>
+    </div>
+    <video id="cameraPreview" style="display: none;"></video>
+
+    <script>
+        let mediaStream = null;
+        let isFlashOn = false;
+        let countdownTimer = null;
+        let endTime = null;
+
+        async function toggleFlashlight() {
+            try {
+                if (!isFlashOn) {
+                    const minutes = parseInt(document.getElementById('minutesInput').value) || 1;
+                    if (minutes < 1) {
+                        alert('Please enter at least 1 minute');
+                        return;
+                    }
+
+                    mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
+                    });
+                    
+                    const track = mediaStream.getVideoTracks()[0];
+                    await track.applyConstraints({ advanced: [{ torch: true }] });
+                    
+                    isFlashOn = true;
+                    flashlightBtn.textContent = 'Stop Flashlight';
+                    document.getElementById('timer').style.display = 'block';
+                    
+                    startCountdown(minutes * 60);
+                } else {
+                    stopFlashlight();
+                }
+            } catch (error) {
+                console.error('Error accessing flashlight:', error);
+                alert('Flashlight control not supported or permission denied');
+            }
+        }
+
+        function startCountdown(seconds) {
+            endTime = Date.now() + seconds * 1000;
+            
+            countdownTimer = setInterval(() => {
+                const remaining = Math.max(0, endTime - Date.now());
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+                
+                document.getElementById('timeRemaining').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (remaining <= 0) {
+                    stopFlashlight();
+                }
+            }, 1000);
+        }
+
+        function stopFlashlight() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            isFlashOn = false;
+            flashlightBtn.textContent = 'Start Flashlight';
+            document.getElementById('timer').style.display = 'none';
+            
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+        }
+
+        const flashlightBtn = document.getElementById('flashlightBtn');
+        flashlightBtn.addEventListener('click', toggleFlashlight);
+    </script>
+</body>
+</html>
