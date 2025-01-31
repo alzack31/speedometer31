@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Reactive Flashlight</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --primary-color: #00ff88;
+            --secondary-color: #2d2d2d;
+            --border-radius: 12px;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Arial', sans-serif;
+        }
+
+        #controls {
+            text-align: center;
+            padding: 2rem;
+            background: var(--secondary-color);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        #sensitivity {
+            width: 200px;
+            margin: 1rem 0;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            border: none;
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            margin: 10px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .instructions {
+            color: #888;
+            margin-top: 2rem;
+            max-width: 300px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="range" id="sensitivity" min="0" max="100" value="50">
+        <div>Sensitivity: <span id="sensValue">50</span>%</div>
+        <button id="discoBtn">Start Disco Flash</button>
+    </div>
+    <div class="instructions">
+        Allow microphone access. The flashlight will pulse with audio input!
+    </div>
+
+    <script>
+        let mediaStream = null;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let isDiscoActive = false;
+        let animationFrameId = null;
+
+        async function toggleDisco() {
+            if (!isDiscoActive) {
+                try {
+                    // Request both camera and microphone access
+                    mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' },
+                        audio: true
+                    });
+
+                    // Setup flashlight
+                    const video = document.createElement('video');
+                    video.srcObject = mediaStream;
+                    await video.play();
+
+                    // Setup audio analysis
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    microphone = audioContext.createMediaStreamSource(mediaStream);
+                    
+                    microphone.connect(analyser);
+                    analyser.fftSize = 256;
+                    
+                    isDiscoActive = true;
+                    discoBtn.textContent = 'Stop Disco';
+                    discoBtn.style.backgroundColor = '#ff4444';
+                    
+                    startAudioAnalysis();
+                } catch (error) {
+                    console.error('Error accessing devices:', error);
+                    alert('Camera and microphone access required!');
+                    stopDisco();
+                }
+            } else {
+                stopDisco();
+            }
+        }
+
+        function startAudioAnalysis() {
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const sensitivity = document.getElementById('sensitivity');
+            
+            function analyze() {
+                if (!isDiscoActive) return;
+
+                analyser.getByteTimeDomainData(dataArray);
+                const volume = getRMS(dataArray);
+                
+                // Adjust sensitivity threshold (0-1 range)
+                const threshold = sensitivity.value / 100;
+                
+                if (volume > threshold) {
+                    flashLight(100); // Flash duration in ms
+                }
+
+                animationFrameId = requestAnimationFrame(analyze);
+            }
+
+            analyze();
+        }
+
+        function getRMS(dataArray) {
+            let sum = 0;
+            for (const value of dataArray) {
+                const normalized = (value - 128) / 128;
+                sum += normalized * normalized;
+            }
+            return Math.sqrt(sum / dataArray.length);
+        }
+
+        async function flashLight(duration) {
+            try {
+                const track = mediaStream.getVideoTracks()[0];
+                await track.applyConstraints({ advanced: [{ torch: true }] });
+                
+                setTimeout(async () => {
+                    await track.applyConstraints({ advanced: [{ torch: false }] });
+                }, duration);
+            } catch (error) {
+                console.error('Flashlight error:', error);
+            }
+        }
+
+        function stopDisco() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            
+            isDiscoActive = false;
+            discoBtn.textContent = 'Start Disco';
+            discoBtn.style.backgroundColor = 'var(--primary-color)';
+        }
+
+        // UI Events
+        const discoBtn = document.getElementById('discoBtn');
+        discoBtn.addEventListener('click', toggleDisco);
+
+        const sensitivity = document.getElementById('sensitivity');
+        const sensValue = document.getElementById('sensValue');
+        sensitivity.addEventListener('input', () => {
+            sensValue.textContent = sensitivity.value;
+        });
+    </script>
+</body>
+</html>
