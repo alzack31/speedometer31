@@ -77,6 +77,10 @@
             background-color: var(--accent-color);
         }
 
+        .control-group {
+            margin-bottom: 1rem;
+        }
+
         .instructions {
             color: #888;
             margin-top: 1rem;
@@ -96,16 +100,22 @@
 <body>
     <canvas id="visualizer"></canvas>
     <div id="controls">
-        <input type="range" id="sensitivity" min="0" max="100" value="50">
-        <div>Sensitivity: <span id="sensValue">50</span>%</div>
-        <select id="colorMode">
-            <option value="rainbow">Rainbow Mode</option>
-            <option value="audio">Audio Reactive Colors</option>
-            <option value="static">Static Color</option>
-        </select>
+        <div class="control-group">
+            <input type="range" id="sensitivity" min="0" max="100" value="50">
+            <div>Sensitivity: <span id="sensValue">50</span>%</div>
+        </div>
+        <div class="control-group">
+            <select id="colorMode">
+                <option value="rainbow">Rainbow Mode</option>
+                <option value="audio">Audio Reactive Colors</option>
+                <option value="static">Static Color</option>
+            </select>
+        </div>
         <button id="discoBtn">Start Disco Light</button>
-        <div id="deviceError">Device not supported or permissions denied</div>
-        <div class="instructions">Allow microphone access. The light will pulse with audio input!</div>
+        <div id="deviceError"></div>
+        <div class="instructions">
+            Allow microphone access. The light will pulse with audio input!
+        </div>
     </div>
 
     <script>
@@ -116,20 +126,40 @@
                 this.analyser = null;
                 this.microphone = null;
                 this.isDiscoActive = false;
-                this.animationFrameId = null;
                 this.visualizer = document.getElementById('visualizer');
                 this.visualizerCtx = this.visualizer.getContext('2d');
+                this.microphonePermission = 'prompt';
                 this.setupEventListeners();
                 this.resizeVisualizer();
                 window.addEventListener('resize', () => this.resizeVisualizer());
             }
 
+            async checkMicrophonePermission() {
+                try {
+                    const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+                    this.microphonePermission = permissionStatus.state;
+
+                    permissionStatus.onchange = () => {
+                        this.microphonePermission = permissionStatus.state;
+                    };
+                } catch (error) {
+                    console.warn("Permission API not supported.");
+                }
+            }
+
             setupEventListeners() {
-                document.getElementById('discoBtn').addEventListener('click', () => this.toggleDisco());
-                document.getElementById('sensitivity').addEventListener('input', (e) => {
-                    document.getElementById('sensValue').textContent = e.target.value;
+                const discoBtn = document.getElementById('discoBtn');
+                const sensitivity = document.getElementById('sensitivity');
+                const sensValue = document.getElementById('sensValue');
+                const colorMode = document.getElementById('colorMode');
+
+                discoBtn.addEventListener('click', () => this.toggleDisco());
+                sensitivity.addEventListener('input', () => {
+                    sensValue.textContent = sensitivity.value;
                 });
-                document.getElementById('colorMode').addEventListener('change', () => this.updateVisualization());
+                colorMode.addEventListener('change', () => {
+                    this.updateVisualization();
+                });
             }
 
             resizeVisualizer() {
@@ -143,7 +173,20 @@
 
                 if (!this.isDiscoActive) {
                     try {
-                        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        await this.checkMicrophonePermission();
+
+                        if (this.microphonePermission === 'denied') {
+                            throw new Error("Microphone permission denied.");
+                        }
+
+                        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                            audio: {
+                                echoCancellation: false,
+                                noiseSuppression: false,
+                                autoGainControl: false
+                            }
+                        });
+
                         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                         this.analyser = this.audioContext.createAnalyser();
                         this.microphone = this.audioContext.createMediaStreamSource(this.mediaStream);
@@ -157,12 +200,24 @@
 
                         this.startAudioAnalysis();
                     } catch (error) {
-                        console.error('Error accessing microphone:', error);
-                        deviceError.style.display = 'block';
+                        this.handleDeviceError(error);
                         this.stopDisco();
                     }
                 } else {
                     this.stopDisco();
+                }
+            }
+
+            handleDeviceError(error) {
+                const deviceError = document.getElementById('deviceError');
+                deviceError.style.display = 'block';
+
+                if (error.message === "Microphone permission denied.") {
+                    deviceError.textContent = "Microphone access was denied. Please reset permissions in your browser settings.";
+                } else if (error.name === 'SecurityError') {
+                    deviceError.textContent = "This feature requires HTTPS or localhost.";
+                } else {
+                    deviceError.textContent = "Microphone access is required for this feature.";
                 }
             }
 
@@ -172,11 +227,14 @@
 
                 const analyze = () => {
                     if (!this.isDiscoActive) return;
+
                     this.analyser.getByteTimeDomainData(dataArray);
                     const volume = this.getRMS(dataArray);
                     const threshold = sensitivity.value / 100;
+
                     this.updateVisualization(volume > threshold ? volume : 0);
-                    this.animationFrameId = requestAnimationFrame(analyze);
+
+                    requestAnimationFrame(analyze);
                 };
 
                 analyze();
@@ -185,22 +243,20 @@
             getRMS(dataArray) {
                 let sum = 0;
                 for (const value of dataArray) {
-                    sum += Math.pow((value - 128) / 128, 2);
+                    const normalized = (value - 128) / 128;
+                    sum += normalized * normalized;
                 }
                 return Math.sqrt(sum / dataArray.length);
             }
 
             updateVisualization(volume = 0) {
                 const ctx = this.visualizerCtx;
-                ctx.clearRect(0, 0, this.visualizer.width, this.visualizer.height);
-                ctx.fillStyle = `rgba(255, 0, 255, ${volume})`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${volume})`;
                 ctx.fillRect(0, 0, this.visualizer.width, this.visualizer.height);
             }
 
             stopDisco() {
                 if (this.mediaStream) this.mediaStream.getTracks().forEach(track => track.stop());
-                if (this.audioContext) this.audioContext.close();
-                cancelAnimationFrame(this.animationFrameId);
                 this.isDiscoActive = false;
                 document.getElementById('discoBtn').textContent = 'Start Disco Light';
                 document.getElementById('discoBtn').classList.remove('active');
