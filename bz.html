@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Audio Reactive Flashlight</title>
+    <title>Audio Reactive Disco Light</title>
     <style>
         :root {
-            --bg-color: #1a1a1a;
+            --bg-color: #121212;
             --text-color: #ffffff;
             --primary-color: #00ff88;
-            --secondary-color: #2d2d2d;
+            --secondary-color: #1e1e1e;
+            --accent-color: #ff4444;
             --border-radius: 12px;
         }
 
@@ -21,18 +22,33 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        #visualizer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
         }
 
         #controls {
+            position: relative;
+            z-index: 2;
             text-align: center;
             padding: 2rem;
             background: var(--secondary-color);
             border-radius: var(--border-radius);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            max-width: 90%;
+            width: 350px;
         }
 
-        #sensitivity {
-            width: 200px;
+        #sensitivity, #colorMode {
+            width: 100%;
             margin: 1rem 0;
         }
 
@@ -55,139 +71,281 @@
             cursor: not-allowed;
         }
 
+        button#discoBtn.active {
+            background-color: var(--accent-color);
+        }
+
+        .control-group {
+            margin-bottom: 1rem;
+        }
+
         .instructions {
             color: #888;
-            margin-top: 2rem;
+            margin-top: 1rem;
             max-width: 300px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        #deviceError {
+            color: var(--accent-color);
+            display: none;
+            margin-top: 1rem;
             text-align: center;
         }
     </style>
 </head>
 <body>
+    <canvas id="visualizer"></canvas>
     <div id="controls">
-        <input type="range" id="sensitivity" min="0" max="100" value="50">
-        <div>Sensitivity: <span id="sensValue">50</span>%</div>
-        <button id="discoBtn">Start Disco Flash</button>
-    </div>
-    <div class="instructions">
-        Allow microphone access. The flashlight will pulse with audio input!
+        <div class="control-group">
+            <input type="range" id="sensitivity" min="0" max="100" value="50">
+            <div>Sensitivity: <span id="sensValue">50</span>%</div>
+        </div>
+        <div class="control-group">
+            <select id="colorMode">
+                <option value="rainbow">Rainbow Mode</option>
+                <option value="audio">Audio Reactive Colors</option>
+                <option value="static">Static Color</option>
+            </select>
+        </div>
+        <button id="discoBtn">Start Disco Light</button>
+        <div id="deviceError">
+            Device not supported or permissions denied
+        </div>
+        <div class="instructions">
+            Allow microphone access. The light will pulse with audio input!
+        </div>
     </div>
 
     <script>
-        let mediaStream = null;
-        let audioContext = null;
-        let analyser = null;
-        let microphone = null;
-        let isDiscoActive = false;
-        let animationFrameId = null;
+        class AudioReactiveDisco {
+            constructor() {
+                this.mediaStream = null;
+                this.audioContext = null;
+                this.analyser = null;
+                this.microphone = null;
+                this.isDiscoActive = false;
+                this.animationFrameId = null;
+                this.visualizer = document.getElementById('visualizer');
+                this.visualizerCtx = this.visualizer.getContext('2d');
+                this.setupEventListeners();
+                this.resizeVisualizer();
+                window.addEventListener('resize', () => this.resizeVisualizer());
+            }
 
-        async function toggleDisco() {
-            if (!isDiscoActive) {
+            setupEventListeners() {
+                const discoBtn = document.getElementById('discoBtn');
+                const sensitivity = document.getElementById('sensitivity');
+                const sensValue = document.getElementById('sensValue');
+                const colorMode = document.getElementById('colorMode');
+
+                discoBtn.addEventListener('click', () => this.toggleDisco());
+                sensitivity.addEventListener('input', () => {
+                    sensValue.textContent = sensitivity.value;
+                });
+                colorMode.addEventListener('change', () => {
+                    this.updateVisualization();
+                });
+            }
+
+            resizeVisualizer() {
+                this.visualizer.width = window.innerWidth;
+                this.visualizer.height = window.innerHeight;
+            }
+
+            async toggleDisco() {
+                const discoBtn = document.getElementById('discoBtn');
+                const deviceError = document.getElementById('deviceError');
+
+                if (!this.isDiscoActive) {
+                    try {
+                        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: 'environment' },
+                            audio: true
+                        });
+
+                        const video = document.createElement('video');
+                        video.srcObject = this.mediaStream;
+                        await video.play();
+
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        this.analyser = this.audioContext.createAnalyser();
+                        this.microphone = this.audioContext.createMediaStreamSource(this.mediaStream);
+                        
+                        this.microphone.connect(this.analyser);
+                        this.analyser.fftSize = 256;
+                        
+                        this.isDiscoActive = true;
+                        discoBtn.textContent = 'Stop Disco Light';
+                        discoBtn.classList.add('active');
+                        deviceError.style.display = 'none';
+                        
+                        this.startAudioAnalysis();
+                    } catch (error) {
+                        console.error('Error accessing devices:', error);
+                        deviceError.style.display = 'block';
+                        this.stopDisco();
+                    }
+                } else {
+                    this.stopDisco();
+                }
+            }
+
+            startAudioAnalysis() {
+                const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+                const sensitivity = document.getElementById('sensitivity');
+                const colorMode = document.getElementById('colorMode');
+                
+                const analyze = () => {
+                    if (!this.isDiscoActive) return;
+
+                    this.analyser.getByteTimeDomainData(dataArray);
+                    const volume = this.getRMS(dataArray);
+                    
+                    const threshold = sensitivity.value / 100;
+                    
+                    if (volume > threshold) {
+                        this.flashLight(100);
+                        this.updateVisualization(volume);
+                    } else {
+                        this.updateVisualization(0);
+                    }
+
+                    this.animationFrameId = requestAnimationFrame(analyze);
+                };
+
+                analyze();
+            }
+
+            getRMS(dataArray) {
+                let sum = 0;
+                for (const value of dataArray) {
+                    const normalized = (value - 128) / 128;
+                    sum += normalized * normalized;
+                }
+                return Math.sqrt(sum / dataArray.length);
+            }
+
+            async flashLight(duration) {
                 try {
-                    // Request both camera and microphone access
-                    mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' },
-                        audio: true
-                    });
-
-                    // Setup flashlight
-                    const video = document.createElement('video');
-                    video.srcObject = mediaStream;
-                    await video.play();
-
-                    // Setup audio analysis
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioContext.createAnalyser();
-                    microphone = audioContext.createMediaStreamSource(mediaStream);
+                    const track = this.mediaStream.getVideoTracks()[0];
+                    await track.applyConstraints({ advanced: [{ torch: true }] });
                     
-                    microphone.connect(analyser);
-                    analyser.fftSize = 256;
-                    
-                    isDiscoActive = true;
-                    discoBtn.textContent = 'Stop Disco';
-                    discoBtn.style.backgroundColor = '#ff4444';
-                    
-                    startAudioAnalysis();
+                    setTimeout(async () => {
+                        await track.applyConstraints({ advanced: [{ torch: false }] });
+                    }, duration);
                 } catch (error) {
-                    console.error('Error accessing devices:', error);
-                    alert('Camera and microphone access required!');
-                    stopDisco();
+                    console.error('Flashlight error:', error);
                 }
-            } else {
-                stopDisco();
             }
-        }
 
-        function startAudioAnalysis() {
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const sensitivity = document.getElementById('sensitivity');
-            
-            function analyze() {
-                if (!isDiscoActive) return;
+            updateVisualization(volume = 0) {
+                const ctx = this.visualizerCtx;
+                const width = this.visualizer.width;
+                const height = this.visualizer.height;
+                const colorMode = document.getElementById('colorMode').value;
 
-                analyser.getByteTimeDomainData(dataArray);
-                const volume = getRMS(dataArray);
-                
-                // Adjust sensitivity threshold (0-1 range)
-                const threshold = sensitivity.value / 100;
-                
-                if (volume > threshold) {
-                    flashLight(100); // Flash duration in ms
+                // Clear previous frame
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.fillRect(0, 0, width, height);
+
+                // Visualization based on color mode
+                switch(colorMode) {
+                    case 'rainbow':
+                        this.rainbowVisualization(volume);
+                        break;
+                    case 'audio':
+                        this.audioReactiveVisualization(volume);
+                        break;
+                    case 'static':
+                        this.staticColorVisualization(volume);
+                        break;
                 }
-
-                animationFrameId = requestAnimationFrame(analyze);
             }
 
-            analyze();
-        }
+            rainbowVisualization(volume) {
+                const ctx = this.visualizerCtx;
+                const width = this.visualizer.width;
+                const height = this.visualizer.height;
+                const time = Date.now() * 0.001;
 
-        function getRMS(dataArray) {
-            let sum = 0;
-            for (const value of dataArray) {
-                const normalized = (value - 128) / 128;
-                sum += normalized * normalized;
+                ctx.beginPath();
+                for (let x = 0; x < width; x += 10) {
+                    const hue = (x / width * 360 + time * 100) % 360;
+                    ctx.fillStyle = `hsla(${hue}, 100%, 50%, ${volume * 0.5})`;
+                    ctx.arc(
+                        width / 2, 
+                        height / 2, 
+                        Math.max(width, height) * (0.2 + volume), 
+                        0, 
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                }
             }
-            return Math.sqrt(sum / dataArray.length);
-        }
 
-        async function flashLight(duration) {
-            try {
-                const track = mediaStream.getVideoTracks()[0];
-                await track.applyConstraints({ advanced: [{ torch: true }] });
+            audioReactiveVisualization(volume) {
+                const ctx = this.visualizerCtx;
+                const width = this.visualizer.width;
+                const height = this.visualizer.height;
+
+                ctx.fillStyle = `rgba(${255 * volume}, ${255 * (1-volume)}, 128, ${volume})`;
+                ctx.beginPath();
+                ctx.arc(
+                    width / 2, 
+                    height / 2, 
+                    Math.max(width, height) * (0.2 + volume), 
+                    0, 
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            staticColorVisualization(volume) {
+                const ctx = this.visualizerCtx;
+                const width = this.visualizer.width;
+                const height = this.visualizer.height;
+
+                ctx.fillStyle = `rgba(255, 255, 255, ${volume * 0.5})`;
+                ctx.beginPath();
+                ctx.arc(
+                    width / 2, 
+                    height / 2, 
+                    Math.max(width, height) * (0.2 + volume), 
+                    0, 
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            stopDisco() {
+                const discoBtn = document.getElementById('discoBtn');
+                const deviceError = document.getElementById('deviceError');
+
+                if (this.mediaStream) {
+                    this.mediaStream.getTracks().forEach(track => track.stop());
+                }
+                if (this.audioContext) {
+                    this.audioContext.close();
+                }
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                }
                 
-                setTimeout(async () => {
-                    await track.applyConstraints({ advanced: [{ torch: false }] });
-                }, duration);
-            } catch (error) {
-                console.error('Flashlight error:', error);
+                this.isDiscoActive = false;
+                discoBtn.textContent = 'Start Disco Light';
+                discoBtn.classList.remove('active');
+                deviceError.style.display = 'none';
+
+                // Clear visualizer
+                const ctx = this.visualizerCtx;
+                ctx.clearRect(0, 0, this.visualizer.width, this.visualizer.height);
             }
         }
 
-        function stopDisco() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-            }
-            if (audioContext) {
-                audioContext.close();
-            }
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
-            
-            isDiscoActive = false;
-            discoBtn.textContent = 'Start Disco';
-            discoBtn.style.backgroundColor = 'var(--primary-color)';
-        }
-
-        // UI Events
-        const discoBtn = document.getElementById('discoBtn');
-        discoBtn.addEventListener('click', toggleDisco);
-
-        const sensitivity = document.getElementById('sensitivity');
-        const sensValue = document.getElementById('sensValue');
-        sensitivity.addEventListener('input', () => {
-            sensValue.textContent = sensitivity.value;
-        });
+        // Initialize the disco light app
+        new AudioReactiveDisco();
     </script>
 </body>
 </html>
