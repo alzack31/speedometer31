@@ -8,7 +8,8 @@
 </head>
 <body>
     <div class="container">
-        <h1 style="color: #63b3ed;">GPS Speedometer</h1>
+        <h1>GPS Speedometer</h1>
+        
         <div class="speed-display speed-standby">0</div>
         
         <div class="unit-selector">
@@ -18,20 +19,26 @@
 
         <div class="stats">
             <div class="stat-box">
-                <div>Max Speed:</div>
+                <div class="stat-label">Max Speed:</div>
                 <div class="max-speed">0.0 km/h</div>
             </div>
             <div class="stat-box">
-                <div>Average Speed:</div>
+                <div class="stat-label">Average Speed:</div>
                 <div class="avg-speed">0.0 km/h</div>
             </div>
         </div>
 
-        <button class="button" onclick="toggleTracking()" disabled>Start Tracking</button>
-        <div class="status">Initializing...</div>
-        <div class="error"></div>
+        <div class="controls">
+            <button class="button primary" onclick="toggleTracking()" disabled>Start Tracking</button>
+            <button class="button secondary" onclick="resetStats()">Reset Stats</button>
+        </div>
+
+        <div class="status-section">
+            <div class="status">Initializing...</div>
+            <div class="error"></div>
+        </div>
     </div>
 
     <script src="app.js"></script>
 </body>
-  </html>
+</html>
