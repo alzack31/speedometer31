@@ -11,6 +11,7 @@
             --card-background: white;
             --text-color: #2d3748;
             --secondary-text: #718096;
+            --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
         @media (prefers-color-scheme: dark) {
@@ -20,7 +21,12 @@
                 --card-background: #2d3748;
                 --text-color: #f7fafc;
                 --secondary-text: #cbd5e0;
+                --accent-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             }
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
@@ -33,7 +39,7 @@
             min-height: 100vh;
             background: var(--background-color);
             color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
+            transition: all 0.3s ease;
         }
 
         .container {
@@ -42,96 +48,260 @@
             text-align: center;
             background: var(--card-background);
             padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--accent-gradient);
+            opacity: 0.8;
+        }
+
+        h1 {
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0 0 2rem 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
 
         .speed-display {
-            font-size: 4rem;
-            font-weight: bold;
-            margin: 1rem 0;
-            transition: color 0.3s;
+            font-size: 5rem;
+            font-weight: 900;
+            margin: 1.5rem 0;
+            transition: all 0.3s ease;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
 
+        .speed-display::after {
+            content: attr(data-unit);
+            font-size: 1.5rem;
+            font-weight: 400;
+            position: absolute;
+            bottom: 0.5rem;
+            right: -0.5rem;
+            opacity: 0.7;
+        }
+
+        .speed-standby { 
+            color: #4fd1c5; 
+            animation: pulse 2s infinite;
+        }
         .speed-slow { color: #48bb78; }
         .speed-medium { color: #4299e1; }
         .speed-fast { color: #ed8936; }
-        .speed-very-fast { color: #e53e3e; }
+        .speed-very-fast { 
+            color: #e53e3e; 
+            animation: flash 1s infinite alternate;
+        }
 
-        .units {
-            font-size: 1.5rem;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @keyframes flash {
+            0% { opacity: 1; }
+            100% { opacity: 0.8; }
+        }
+
+        .unit-selector {
+            margin: 2rem 0;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            background: var(--background-color);
+            border-radius: 0.75rem;
+            padding: 0.5rem;
+        }
+
+        .unit-button {
+            background: transparent;
             color: var(--secondary-text);
-            margin-bottom: 2rem;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            position: relative;
+        }
+
+        .unit-button.active {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+        }
+
+        .unit-button:hover:not(.active) {
+            background: rgba(66, 153, 225, 0.1);
+            transform: translateY(-1px);
         }
 
         .stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin: 1rem 0;
-            text-align: left;
+            gap: 1.5rem;
+            margin: 2rem 0;
         }
 
         .stat-box {
             background: var(--background-color);
-            padding: 1rem;
-            border-radius: 0.5rem;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--secondary-text);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-color);
         }
 
         .button {
-            background: var(--primary-color);
+            background: var(--accent-gradient);
             color: white;
             border: none;
-            padding: 1rem 2rem;
-            border-radius: 0.5rem;
+            padding: 1.2rem 3rem;
+            border-radius: 0.75rem;
             font-size: 1.1rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(66, 153, 225, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.2);
+            transition: left 0.5s;
+        }
+
+        .button:hover::before {
+            left: 100%;
         }
 
         .button:hover {
-            filter: brightness(1.1);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(66, 153, 225, 0.4);
         }
 
         .button:disabled {
             background: var(--secondary-text);
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .status {
-            margin-top: 1rem;
+            margin-top: 1.5rem;
             color: var(--secondary-text);
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            background: rgba(66, 153, 225, 0.1);
         }
 
         .error {
             color: #e53e3e;
             margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(229, 62, 62, 0.1);
+            border-radius: 0.5rem;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .accuracy-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .accuracy-high { background: #48bb78; }
+        .accuracy-medium { background: #ed8936; }
+        .accuracy-low { background: #e53e3e; }
+
+        @media (max-width: 640px) {
+            .speed-display {
+                font-size: 4rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .container {
+                padding: 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 style="color: #63b3ed;">GPS Speedometer</h1>
-
-        <div class="speed-display">0</div>
-        <div class="units">
-            <span class="kph">0 km/h</span> | 
-            <span class="mph">0 mph</span>
+        <h1>GPS Speedometer</h1>
+        <div class="speed-display speed-standby" data-unit="km/h">0</div>
+        
+        <div class="unit-selector">
+            <button class="unit-button active" onclick="toggleUnit('kph')">km/h</button>
+            <button class="unit-button" onclick="toggleUnit('mph')">mph</button>
         </div>
 
         <div class="stats">
             <div class="stat-box">
-                <div>Max Speed:</div>
-                <div class="max-speed">0 km/h</div>
+                <div class="stat-label">Max Speed</div>
+                <div class="stat-value max-speed">0.0 km/h</div>
             </div>
             <div class="stat-box">
-                <div>Average Speed:</div>
-                <div class="avg-speed">0 km/h</div>
+                <div class="stat-label">Average Speed</div>
+                <div class="stat-value avg-speed">0.0 km/h</div>
             </div>
         </div>
 
         <button class="button" onclick="toggleTracking()" disabled>Start Tracking</button>
-        <div class="status">Checking GPS availability...</div>
+        <div class="status">Initializing... <span class="accuracy-indicator"></span></div>
         <div class="error"></div>
     </div>
 
@@ -139,36 +309,39 @@
         const state = {
             isTracking: false,
             watchId: null,
+            updateInterval: 1000,
             speeds: [],
             maxSpeed: 0,
             movingAverageWindow: [],
+            kalmanFilter: null,
+            currentUnit: 'kph',
+            accuracy: null
         };
 
-        const ACCURACY_THRESHOLD = 20; // meters
-        const MOVING_AVERAGE_SIZE = 100;
-        const SPEED_THRESHOLDS = {
-            SLOW: 20,    // km/h
+        const ACCURACY_THRESHOLD = 20;
+        const SPEED_THRESHOLDS = { 
+            STANDBY: 2,
+            SLOW: 20,
             MEDIUM: 40,
-            FAST: 60,
-            VERY_FAST: 80
+            FAST: 60
         };
+        const MOVING_AVERAGE_DURATION = 60 * 1000;
 
         const elements = {
             speedDisplay: document.querySelector('.speed-display'),
-            kphDisplay: document.querySelector('.kph'),
-            mphDisplay: document.querySelector('.mph'),
             maxSpeedDisplay: document.querySelector('.max-speed'),
             avgSpeedDisplay: document.querySelector('.avg-speed'),
             statusDisplay: document.querySelector('.status'),
             errorDisplay: document.querySelector('.error'),
             button: document.querySelector('.button'),
+            accuracyIndicator: document.querySelector('.accuracy-indicator')
         };
 
         class KalmanFilter {
-            constructor(processNoise = 0.1, measurementNoise = 1, estimateError = 1) {
+            constructor(processNoise = 0.1, measurementNoise = 1) {
                 this.Q = processNoise;
                 this.R = measurementNoise;
-                this.P = estimateError;
+                this.P = 1;
                 this.x = null;
             }
 
@@ -178,146 +351,231 @@
                     return measurement;
                 }
 
-                // Prediction
                 const predictedP = this.P + this.Q;
-
-                // Update
                 const K = predictedP / (predictedP + this.R);
-                this.x = this.x + K * (measurement - this.x);
+                this.x += K * (measurement - this.x);
                 this.P = (1 - K) * predictedP;
 
                 return this.x;
             }
+        }
 
-            reset() {
-                this.x = null;
-                this.P = 1;
+        function updateAccuracyIndicator(accuracy) {
+            state.accuracy = accuracy;
+            elements.accuracyIndicator.classList.remove('accuracy-high', 'accuracy-medium', 'accuracy-low');
+            
+            if (accuracy <= 10) {
+                elements.accuracyIndicator.classList.add('accuracy-high');
+            } else if (accuracy <= 20) {
+                elements.accuracyIndicator.classList.add('accuracy-medium');
+            } else {
+                elements.accuracyIndicator.classList.add('accuracy-low');
             }
         }
 
-        const kalmanFilter = new KalmanFilter();
-
         function updateSpeedClass(speedKph) {
-            elements.speedDisplay.classList.remove('speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast');
-            
-            if (speedKph >= SPEED_THRESHOLDS.VERY_FAST) {
+            elements.speedDisplay.classList.remove(
+                'speed-standby', 'speed-slow', 'speed-medium', 'speed-fast', 'speed-very-fast'
+            );
+
+            if (speedKph >= SPEED_THRESHOLDS.FAST) {
                 elements.speedDisplay.classList.add('speed-very-fast');
-            } else if (speedKph >= SPEED_THRESHOLDS.FAST) {
-                elements.speedDisplay.classList.add('speed-fast');
             } else if (speedKph >= SPEED_THRESHOLDS.MEDIUM) {
-                elements.speedDisplay.classList.add('speed-medium');
+                elements.speedDisplay.classList.add('speed-fast');
             } else if (speedKph >= SPEED_THRESHOLDS.SLOW) {
+                elements.speedDisplay.classList.add('speed-medium');
+            } else if (speedKph >= SPEED_THRESHOLDS.STANDBY) {
                 elements.speedDisplay.classList.add('speed-slow');
+            } else {
+                elements.speedDisplay.classList.add('speed-standby');
             }
+        }
+
+        function updateSpeedDisplay(speedKph) {
+            let displaySpeed;
+            let unit;
+            
+            if (state.currentUnit === 'kph') {
+                displaySpeed = speedKph;
+                unit = 'km/h';
+            } else {
+                displaySpeed = speedKph * 0.621371;
+                unit = 'mph';
+            }
+            
+            elements.speedDisplay.textContent = Math.round(Math.max(0, displaySpeed));
+            elements.speedDisplay.setAttribute('data-unit', unit);
+            updateSpeedClass(speedKph);
+            updateStats(speedKph);
         }
 
         function updateStats(speedKph) {
             // Update max speed
             if (speedKph > state.maxSpeed) {
                 state.maxSpeed = speedKph;
-                elements.maxSpeedDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
             }
 
-            // Update moving average
-            state.movingAverageWindow.push(speedKph);
-            if (state.movingAverageWindow.length > MOVING_AVERAGE_SIZE) {
-                state.movingAverageWindow.shift();
-            }
-
-            const avgSpeed = state.movingAverageWindow.reduce((a, b) => a + b, 0) / 
-                           state.movingAverageWindow.length;
-            elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
-        }
-
-        function updateSpeedDisplay(speedKph) {
-            elements.speedDisplay.textContent = Math.round(speedKph);
-            elements.kphDisplay.textContent = `${speedKph.toFixed(1)} km/h`;
-            elements.mphDisplay.textContent = `${(speedKph * 0.621371).toFixed(1)} mph`;
+            // Update moving average window
+            const now = Date.now();
+            state.movingAverageWindow = state.movingAverageWindow.filter(
+                entry => now - entry.timestamp < MOVING_AVERAGE_DURATION
+            );
+            state.movingAverageWindow.push({ speed: speedKph, timestamp: now });
             
-            updateSpeedClass(speedKph);
-            updateStats(speedKph);
-        }
+            // Calculate average with safety checks
+            const total = state.movingAverageWindow.reduce((sum, entry) => sum + entry.speed, 0);
+            const avgSpeed = state.movingAverageWindow.length > 0 
+                ? total / state.movingAverageWindow.length 
+                : 0;
 
-        function resetState() {
-            state.speeds = [];
-            state.maxSpeed = 0;
-            state.movingAverageWindow = [];
-            kalmanFilter.reset();
-
-            updateSpeedDisplay(0);
-            elements.errorDisplay.textContent = '';
-        }
-
-        function handlePositionError(error) {
-            let errorMessage = 'GPS Error: ';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMessage += 'Location permission denied';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMessage += 'Location information unavailable';
-                    break;
-                case error.TIMEOUT:
-                    errorMessage += 'Location request timed out';
-                    break;
-                default:
-                    errorMessage += error.message;
+            // Update displays
+            if (state.currentUnit === 'mph') {
+                elements.maxSpeedDisplay.textContent = `${(state.maxSpeed * 0.621371).toFixed(1)} mph`;
+                elements.avgSpeedDisplay.textContent = `${(avgSpeed * 0.621371).toFixed(1)} mph`;
+            } else {
+                elements.maxSpeedDisplay.textContent = `${state.maxSpeed.toFixed(1)} km/h`;
+                elements.avgSpeedDisplay.textContent = `${avgSpeed.toFixed(1)} km/h`;
             }
-            elements.errorDisplay.textContent = errorMessage;
-            stopTracking();
+        }
+
+        function toggleUnit(unit) {
+            if (unit === state.currentUnit) return;
+            
+            state.currentUnit = unit;
+            document.querySelectorAll('.unit-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeBtn = document.querySelector(`[onclick="toggleUnit('${unit}')"]`);
+            activeBtn.classList.add('active');
+            
+            updateSpeedDisplay(state.speeds.length > 0 ? state.speeds[state.speeds.length - 1] : 0);
         }
 
         function handlePosition(position) {
-            const { speed, accuracy } = position.coords;
+            updateAccuracyIndicator(position.coords.accuracy);
             
-            if (speed === null || accuracy > ACCURACY_THRESHOLD) {
+            if (position.coords.speed == null || position.coords.accuracy > ACCURACY_THRESHOLD) {
                 return;
             }
-
-            // Convert speed from m/s to km/h and apply Kalman filter
-            const speedKph = kalmanFilter.update(speed * 3.6);
-            updateSpeedDisplay(speedKph);
+            
+            const rawSpeed = Math.max(0, position.coords.speed * 3.6); // Convert m/s to km/h
+            const filteredSpeed = state.kalmanFilter.update(rawSpeed);
+            
+            state.speeds.push(filteredSpeed);
+            updateSpeedDisplay(filteredSpeed);
+            adjustUpdateRate(filteredSpeed);
         }
 
-        function startTracking() {
-            resetState();
-            state.isTracking = true;
-            elements.button.textContent = 'Stop Tracking';
+        function adjustUpdateRate(speedKph) {
+            let newInterval = 1000;
+            if (speedKph > 80) newInterval = 200;
+            else if (speedKph > 40) newInterval = 300;
+            else if (speedKph > 10) newInterval = 500;
 
-            const options = {
-                enableHighAccuracy: true,
-                timeout: 5000,
-                maximumAge: 0
-            };
-
-            state.watchId = navigator.geolocation.watchPosition(
-                handlePosition,
-                handlePositionError,
-                options
-            );
-        }
-
-        function stopTracking() {
-            if (state.watchId !== null) {
+            if (newInterval !== state.updateInterval) {
+                state.updateInterval = newInterval;
                 navigator.geolocation.clearWatch(state.watchId);
-                state.watchId = null;
+                state.watchId = navigator.geolocation.watchPosition(
+                    handlePosition,
+                    handlePositionError,
+                    { 
+                        enableHighAccuracy: true, 
+                        maximumAge: newInterval,
+                        timeout: 15000
+                    }
+                );
             }
-            state.isTracking = false;
-            elements.button.textContent = 'Start Tracking';
+        }
+
+        function handlePositionError(error) {
+            let message = 'GPS Error: ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message += 'Location access denied. Please enable GPS permissions.'; 
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message += 'GPS signal unavailable. Try moving to an open area.'; 
+                    break;
+                case error.TIMEOUT:
+                    message += 'GPS timeout. Check your GPS signal.'; 
+                    break;
+                default:
+                    message += error.message;
+            }
+            elements.errorDisplay.textContent = message;
+            setTimeout(() => {
+                if (state.isTracking) {
+                    startTracking(); // Retry
+                }
+            }, 5000);
         }
 
         function toggleTracking() {
             state.isTracking ? stopTracking() : startTracking();
         }
 
-        // Initialize
+        function startTracking() {
+            state.isTracking = true;
+            state.kalmanFilter = new KalmanFilter(0.05, 0.5); // More responsive filter
+            state.speeds = [];
+            state.maxSpeed = 0;
+            state.movingAverageWindow = [];
+            
+            elements.button.textContent = 'Stop Tracking';
+            elements.statusDisplay.textContent = 'Acquiring GPS signal...';
+            elements.errorDisplay.textContent = '';
+
+            state.watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    handlePosition(position);
+                    if (elements.statusDisplay.textContent === 'Acquiring GPS signal...') {
+                        elements.statusDisplay.textContent = 'Tracking speed';
+                    }
+                },
+                handlePositionError,
+                { 
+                    enableHighAccuracy: true, 
+                    maximumAge: 1000,
+                    timeout: 15000
+                }
+            );
+        }
+
+        function stopTracking() {
+            state.isTracking = false;
+            if (state.watchId) {
+                navigator.geolocation.clearWatch(state.watchId);
+            }
+            elements.button.textContent = 'Start Tracking';
+            elements.statusDisplay.textContent = 'Ready to track';
+            elements.accuracyIndicator.className = 'accuracy-indicator';
+            updateSpeedDisplay(0); // Reset speed display to 0
+        }
+
+        // Initialize the app
         window.addEventListener('load', () => {
             if ('geolocation' in navigator) {
-                elements.statusDisplay.textContent = 'GPS ready';
                 elements.button.disabled = false;
+                elements.statusDisplay.textContent = 'Ready to track';
+                
+                // Request permission immediately for better UX
+                navigator.permissions.query({name: 'geolocation'}).then(result => {
+                    if (result.state === 'denied') {
+                        elements.errorDisplay.textContent = 'Location permission denied. Please enable location access in your browser settings.';
+                    }
+                });
             } else {
-                elements.statusDisplay.textContent = 'GPS not supported';
-                elements.errorDisplay.textContent = 'Your browser does not support geolocation';
+                elements.statusDisplay.textContent = 'Geolocation not supported';
+                elements.errorDisplay.textContent = 'This browser does not support geolocation.';
+            }
+        });
+
+        // Handle visibility change to conserve battery
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && state.isTracking) {
+                // App is hidden, reduce update frequency
+                state.updateInterval = Math.max(state.updateInterval * 2, 5000);
             }
         });
     </script>
