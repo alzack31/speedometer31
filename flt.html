@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Timed Flashlight</title>
+    <title>Enhanced Timed Flashlight</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         :root {
-            --bg-color: #1a1a1a;
+            --bg-color: #0a0a0a;
             --text-color: #ffffff;
             --primary-color: #00ff88;
-            --secondary-color: #2d2d2d;
-            --border-radius: 12px;
+            --secondary-color: #1e1e1e;
+            --accent-color: #ff6b35;
+            --warning-color: #ffaa00;
+            --border-radius: 16px;
+            --glow-color: rgba(0, 255, 136, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
@@ -16,29 +24,87 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
-            background-color: var(--bg-color);
+            padding: 20px;
+            background: linear-gradient(135deg, var(--bg-color) 0%, #1a1a2e 100%);
             color: var(--text-color);
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+        }
+
+        #app {
+            max-width: 400px;
+            width: 100%;
         }
 
         #controls {
             text-align: center;
-            padding: 2rem;
-            background: var(--secondary-color);
+            padding: 2.5rem;
+            background: linear-gradient(145deg, var(--secondary-color), #252525);
             border-radius: var(--border-radius);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            background: linear-gradient(45deg, var(--primary-color), #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px var(--glow-color);
+        }
+
+        .input-section {
+            margin: 2rem 0;
+        }
+
+        .time-presets {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .preset-btn {
+            padding: 8px 16px;
+            background: var(--bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 20px;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .preset-btn:hover {
+            background: var(--primary-color);
+            color: var(--bg-color);
+            box-shadow: 0 0 15px var(--glow-color);
+        }
+
+        .preset-btn.active {
+            background: var(--primary-color);
+            color: var(--bg-color);
         }
 
         .input-group {
             margin: 1.5rem 0;
+            position: relative;
         }
 
         #minutesInput {
-            padding: 12px 20px;
-            font-size: 1.2rem;
-            width: 120px;
+            padding: 16px 24px;
+            font-size: 1.4rem;
+            width: 200px;
             background: var(--bg-color);
             border: 2px solid var(--primary-color);
             border-radius: var(--border-radius);
@@ -49,21 +115,75 @@
 
         #minutesInput:focus {
             outline: none;
-            box-shadow: 0 0 10px var(--primary-color);
+            box-shadow: 0 0 20px var(--glow-color);
+            border-color: #00ccff;
+        }
+
+        .brightness-control {
+            margin: 1.5rem 0;
+        }
+
+        .brightness-slider {
+            width: 200px;
+            margin: 10px 0;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--bg-color);
+            outline: none;
+        }
+
+        .brightness-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--glow-color);
+        }
+
+        .brightness-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px var(--glow-color);
         }
 
         #flashlightBtn {
-            padding: 15px 40px;
-            font-size: 1.2rem;
+            padding: 20px 50px;
+            font-size: 1.3rem;
             cursor: pointer;
             border-radius: var(--border-radius);
             border: none;
-            background-color: var(--primary-color);
+            background: linear-gradient(45deg, var(--primary-color), #00ccff);
             color: var(--bg-color);
-            margin: 10px;
+            margin: 15px;
             transition: all 0.3s ease;
             font-weight: bold;
             text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #flashlightBtn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        #flashlightBtn:hover::before {
+            left: 100%;
         }
 
         #flashlightBtn:disabled {
@@ -72,75 +192,357 @@
         }
 
         #flashlightBtn:active:not(:disabled) {
-            transform: scale(0.98);
+            transform: scale(0.95);
+        }
+
+        #flashlightBtn.stop {
+            background: linear-gradient(45deg, var(--accent-color), #ff4444);
+        }
+
+        .timer-section {
+            margin: 2rem 0;
         }
 
         #timer {
-            font-size: 2.5rem;
-            margin: 2rem 0;
+            font-size: 3rem;
+            margin: 1rem 0;
             font-weight: bold;
             text-align: center;
+            position: relative;
         }
 
         #timeRemaining {
             color: var(--primary-color);
-            text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+            text-shadow: 0 0 20px var(--glow-color);
+            transition: color 0.3s ease;
+        }
+
+        #timeRemaining.warning {
+            color: var(--warning-color);
+            text-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
+            animation: pulse 1s infinite;
+        }
+
+        #timeRemaining.critical {
+            color: var(--accent-color);
+            text-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .progress-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 1rem;
+        }
+
+        .progress-ring svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .progress-ring-bg {
+            fill: none;
+            stroke: var(--bg-color);
+            stroke-width: 8;
+        }
+
+        .progress-ring-fill {
+            fill: none;
+            stroke: var(--primary-color);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 314;
+            stroke-dashoffset: 314;
+            transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+            filter: drop-shadow(0 0 8px var(--glow-color));
+        }
+
+        .controls-grid {
+            display: flex;
+            justify-content: space-around;
+            margin: 1.5rem 0;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 10px 15px;
+            background: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 10px;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            flex: 1;
+        }
+
+        .control-btn:hover {
+            background: var(--primary-color);
+            color: var(--bg-color);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .status-indicator.active {
+            background: var(--primary-color);
+            box-shadow: 0 0 10px var(--glow-color);
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         .instructions {
             color: #888;
             margin-top: 2rem;
-            max-width: 300px;
             text-align: center;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 1rem 0;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .feature::before {
+            content: '✓';
+            color: var(--primary-color);
+        }
+
+        @media (max-width: 480px) {
+            #controls {
+                padding: 1.5rem;
+            }
+            
+            .time-presets {
+                gap: 5px;
+            }
+            
+            .preset-btn {
+                padding: 6px 12px;
+                font-size: 0.8rem;
+            }
+            
+            #minutesInput {
+                width: 180px;
+                font-size: 1.2rem;
+            }
+            
+            #timer {
+                font-size: 2.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="controls">
-        <div class="input-group">
-            <input type="number" id="minutesInput" min="0.1" step="0.1" value="1.0" 
-                   placeholder="Minutes" inputmode="decimal">
+    <div id="app">
+        <div id="controls">
+            <div class="header">
+                <h1>Smart Flashlight Timer</h1>
+                <div class="status-indicator" id="statusIndicator"></div>
+            </div>
+
+            <div class="time-presets">
+                <button class="preset-btn" data-minutes="0.5">30s</button>
+                <button class="preset-btn" data-minutes="1">1m</button>
+                <button class="preset-btn" data-minutes="2">2m</button>
+                <button class="preset-btn" data-minutes="5">5m</button>
+                <button class="preset-btn" data-minutes="10">10m</button>
+            </div>
+
+            <div class="input-section">
+                <div class="input-group">
+                    <input type="number" id="minutesInput" min="0.1" max="60" step="0.1" value="1.0" 
+                           placeholder="Minutes" inputmode="decimal">
+                </div>
+
+                <div class="brightness-control">
+                    <label for="brightnessSlider">Flash Intensity</label>
+                    <input type="range" id="brightnessSlider" class="brightness-slider" 
+                           min="0.1" max="1" step="0.1" value="1">
+                    <div id="brightnessValue">100%</div>
+                </div>
+            </div>
+
+            <button id="flashlightBtn">Start Flashlight</button>
+
+            <div class="controls-grid">
+                <button class="control-btn" id="pauseBtn" disabled>Pause</button>
+                <button class="control-btn" id="extendBtn" disabled>+1 Min</button>
+                <button class="control-btn" id="flashBtn" disabled>Flash SOS</button>
+            </div>
+
+            <div class="timer-section">
+                <div class="progress-ring">
+                    <svg>
+                        <circle class="progress-ring-bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress-ring-fill" cx="60" cy="60" r="50" id="progressCircle"></circle>
+                    </svg>
+                </div>
+                <div id="timer">
+                    <div id="timeRemaining">0:00</div>
+                </div>
+            </div>
+
+            <div class="features">
+                <div class="feature">Visual Timer</div>
+                <div class="feature">SOS Flash</div>
+                <div class="feature">Pause/Resume</div>
+                <div class="feature">Quick Presets</div>
+                <div class="feature">Brightness Control</div>
+                <div class="feature">Auto Shutoff</div>
+            </div>
         </div>
-        <button id="flashlightBtn">Start Flashlight</button>
-        <div id="timer">
-            <div id="timeRemaining">0:00</div>
+
+        <div class="instructions">
+            Advanced flashlight timer with pause, extend, and SOS features.
+            <br>Perfect for reading, emergencies, or any timed lighting needs.
         </div>
     </div>
-    <div class="instructions">
-        Enter minutes (e.g., 1.5 = 1 minute 30 seconds)
-    </div>
+
     <video id="cameraPreview" style="display: none;"></video>
 
     <script>
         let mediaStream = null;
         let isFlashOn = false;
+        let isPaused = false;
         let countdownTimer = null;
         let endTime = null;
+        let totalDuration = 0;
+        let sosInterval = null;
+        let currentBrightness = 1;
+        
+        const elements = {
+            flashlightBtn: document.getElementById('flashlightBtn'),
+            minutesInput: document.getElementById('minutesInput'),
+            timeRemaining: document.getElementById('timeRemaining'),
+            progressCircle: document.getElementById('progressCircle'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            pauseBtn: document.getElementById('pauseBtn'),
+            extendBtn: document.getElementById('extendBtn'),
+            flashBtn: document.getElementById('flashBtn'),
+            brightnessSlider: document.getElementById('brightnessSlider'),
+            brightnessValue: document.getElementById('brightnessValue')
+        };
+
+        // Initialize app
+        init();
+
+        function init() {
+            setupEventListeners();
+            updateBrightnessDisplay();
+        }
+
+        function setupEventListeners() {
+            elements.flashlightBtn.addEventListener('click', toggleFlashlight);
+            elements.pauseBtn.addEventListener('click', togglePause);
+            elements.extendBtn.addEventListener('click', extendTime);
+            elements.flashBtn.addEventListener('click', toggleSOSFlash);
+            
+            elements.brightnessSlider.addEventListener('input', updateBrightness);
+            elements.minutesInput.addEventListener('input', validateInput);
+
+            // Preset buttons
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const minutes = parseFloat(e.target.dataset.minutes);
+                    elements.minutesInput.value = minutes;
+                    
+                    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                });
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', handleKeyboard);
+        }
+
+        function handleKeyboard(e) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (isFlashOn) {
+                    togglePause();
+                } else {
+                    toggleFlashlight();
+                }
+            }
+        }
+
+        function validateInput(e) {
+            let value = parseFloat(e.target.value);
+            if (value < 0.1) e.target.value = 0.1;
+            if (value > 60) e.target.value = 60;
+        }
+
+        function updateBrightness() {
+            currentBrightness = parseFloat(elements.brightnessSlider.value);
+            updateBrightnessDisplay();
+            
+            if (mediaStream && isFlashOn) {
+                applyFlashSettings();
+            }
+        }
+
+        function updateBrightnessDisplay() {
+            const percentage = Math.round(currentBrightness * 100);
+            elements.brightnessValue.textContent = `${percentage}%`;
+        }
+
+        async function applyFlashSettings() {
+            try {
+                const track = mediaStream.getVideoTracks()[0];
+                const capabilities = track.getCapabilities();
+                
+                if (capabilities.torch) {
+                    await track.applyConstraints({
+                        advanced: [{ 
+                            torch: true,
+                            brightness: currentBrightness
+                        }]
+                    });
+                }
+            } catch (error) {
+                console.log('Brightness control not fully supported:', error);
+            }
+        }
 
         async function toggleFlashlight() {
             try {
                 if (!isFlashOn) {
-                    const minutesInput = parseFloat(document.getElementById('minutesInput').value);
-                    if (isNaN(minutesInput) || minutesInput <= 0) {
-                        alert('Please enter a valid positive number');
-                        return;
-                    }
-
-                    // Request camera access
-                    mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' }
-                    });
-                    
-                    const track = mediaStream.getVideoTracks()[0];
-                    await track.applyConstraints({ advanced: [{ torch: true }] });
-                    
-                    isFlashOn = true;
-                    flashlightBtn.textContent = 'Stop Flashlight';
-                    flashlightBtn.style.backgroundColor = '#ff4444';
-                    document.getElementById('minutesInput').disabled = true;
-                    
-                    // Start countdown with decimal minutes converted to seconds
-                    startCountdown(minutesInput * 60);
+                    await startFlashlight();
                 } else {
                     stopFlashlight();
                 }
@@ -150,18 +552,55 @@
             }
         }
 
+        async function startFlashlight() {
+            const minutesInput = parseFloat(elements.minutesInput.value);
+            if (isNaN(minutesInput) || minutesInput <= 0) {
+                alert('Please enter a valid positive number');
+                return;
+            }
+
+            // Request camera access
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            
+            const track = mediaStream.getVideoTracks()[0];
+            await track.applyConstraints({ advanced: [{ torch: true }] });
+            await applyFlashSettings();
+            
+            isFlashOn = true;
+            isPaused = false;
+            elements.flashlightBtn.textContent = 'Stop Flashlight';
+            elements.flashlightBtn.classList.add('stop');
+            elements.minutesInput.disabled = true;
+            elements.statusIndicator.classList.add('active');
+            
+            // Enable control buttons
+            elements.pauseBtn.disabled = false;
+            elements.extendBtn.disabled = false;
+            elements.flashBtn.disabled = false;
+            
+            // Start countdown
+            totalDuration = minutesInput * 60;
+            startCountdown(totalDuration);
+        }
+
         function startCountdown(totalSeconds) {
             endTime = Date.now() + totalSeconds * 1000;
+            totalDuration = totalSeconds;
             
-            updateTimerDisplay(); // Initial update
+            updateTimerDisplay();
             
             countdownTimer = setInterval(() => {
-                const remaining = endTime - Date.now();
-                if (remaining <= 0) {
-                    stopFlashlight();
+                if (!isPaused) {
+                    const remaining = endTime - Date.now();
+                    if (remaining <= 0) {
+                        stopFlashlight();
+                        return;
+                    }
+                    updateTimerDisplay();
                 }
-                updateTimerDisplay();
-            }, 200);
+            }, 100);
         }
 
         function updateTimerDisplay() {
@@ -170,8 +609,95 @@
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             
-            document.getElementById('timeRemaining').textContent = 
+            elements.timeRemaining.textContent = 
                 `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // Update progress ring
+            const progress = 1 - (remaining / 1000) / totalDuration;
+            const circumference = 314;
+            const offset = circumference - (progress * circumference);
+            elements.progressCircle.style.strokeDashoffset = offset;
+
+            // Color coding for urgency
+            elements.timeRemaining.className = '';
+            elements.progressCircle.style.stroke = 'var(--primary-color)';
+            
+            if (totalSeconds <= 30 && totalSeconds > 10) {
+                elements.timeRemaining.classList.add('warning');
+                elements.progressCircle.style.stroke = 'var(--warning-color)';
+            } else if (totalSeconds <= 10) {
+                elements.timeRemaining.classList.add('critical');
+                elements.progressCircle.style.stroke = 'var(--accent-color)';
+            }
+        }
+
+        function togglePause() {
+            if (!isFlashOn) return;
+            
+            isPaused = !isPaused;
+            elements.pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+            
+            if (isPaused) {
+                const remaining = endTime - Date.now();
+                endTime = null;
+                // Store remaining time
+                window.pausedTime = remaining;
+            } else {
+                // Restore countdown
+                endTime = Date.now() + window.pausedTime;
+            }
+        }
+
+        function extendTime() {
+            if (!isFlashOn) return;
+            
+            const oneMinute = 60 * 1000;
+            endTime += oneMinute;
+            totalDuration += 60;
+            
+            // Show feedback
+            elements.extendBtn.textContent = 'Added!';
+            setTimeout(() => {
+                elements.extendBtn.textContent = '+1 Min';
+            }, 1000);
+        }
+
+        function toggleSOSFlash() {
+            if (!isFlashOn) return;
+            
+            if (sosInterval) {
+                clearInterval(sosInterval);
+                sosInterval = null;
+                elements.flashBtn.textContent = 'Flash SOS';
+                return;
+            }
+            
+            elements.flashBtn.textContent = 'Stop SOS';
+            
+            // SOS pattern: ... --- ... (3 short, 3 long, 3 short)
+            const pattern = [100, 100, 100, 100, 100, 100, 300, 100, 300, 100, 300, 100, 100, 100, 100, 100, 100, 100, 1000];
+            let patternIndex = 0;
+            let flashState = true;
+            
+            sosInterval = setInterval(async () => {
+                const track = mediaStream.getVideoTracks()[0];
+                
+                if (flashState && patternIndex < pattern.length) {
+                    await track.applyConstraints({ advanced: [{ torch: false }] });
+                } else {
+                    await track.applyConstraints({ advanced: [{ torch: true }] });
+                    await applyFlashSettings();
+                }
+                
+                flashState = !flashState;
+                
+                if (!flashState) {
+                    patternIndex++;
+                    if (patternIndex >= pattern.length) {
+                        patternIndex = 0;
+                    }
+                }
+            }, pattern[patternIndex] || 100);
         }
 
         function stopFlashlight() {
@@ -179,28 +705,37 @@
                 mediaStream.getTracks().forEach(track => track.stop());
                 mediaStream = null;
             }
-            isFlashOn = false;
-            flashlightBtn.textContent = 'Start Flashlight';
-            flashlightBtn.style.backgroundColor = 'var(--primary-color)';
-            document.getElementById('minutesInput').disabled = false;
+            
+            if (sosInterval) {
+                clearInterval(sosInterval);
+                sosInterval = null;
+            }
             
             if (countdownTimer) {
                 clearInterval(countdownTimer);
                 countdownTimer = null;
             }
             
-            document.getElementById('timeRemaining').textContent = '0:00';
+            isFlashOn = false;
+            isPaused = false;
+            elements.flashlightBtn.textContent = 'Start Flashlight';
+            elements.flashlightBtn.classList.remove('stop');
+            elements.minutesInput.disabled = false;
+            elements.statusIndicator.classList.remove('active');
+            
+            // Disable control buttons
+            elements.pauseBtn.disabled = true;
+            elements.pauseBtn.textContent = 'Pause';
+            elements.extendBtn.disabled = true;
+            elements.flashBtn.disabled = true;
+            elements.flashBtn.textContent = 'Flash SOS';
+            
+            // Reset display
+            elements.timeRemaining.textContent = '0:00';
+            elements.timeRemaining.className = '';
+            elements.progressCircle.style.strokeDashoffset = 314;
+            elements.progressCircle.style.stroke = 'var(--primary-color)';
         }
-
-        const flashlightBtn = document.getElementById('flashlightBtn');
-        flashlightBtn.addEventListener('click', toggleFlashlight);
-
-        // Input validation
-        document.getElementById('minutesInput').addEventListener('input', (e) => {
-            let value = parseFloat(e.target.value);
-            if (value < 0.1) e.target.value = 0.1;
-            if (value > 60) e.target.value = 60;
-        });
     </script>
 </body>
 </html>
